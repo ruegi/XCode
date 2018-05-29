@@ -70,6 +70,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
                             # It sets up layout and widgets that are defined
         # Instanz-Variablen
         self.process = None
+        self.processkilled = False
         self.quelle  = "C:\\ts\\"
         self.ziel    = "E:\\Filme\\schnitt\\"
         self.logpath = "E:\\Filme\\log\\"
@@ -83,6 +84,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.prend = 0          # end timer
         self.ts_von = ""        # aktuelle quelle
         self.ts_nach = ""       # aktuelles ziel
+        self.lastcmd = ""       # letzter cmd, der im Prozess verarbeitet wurde
 
         # Icon versorgen
         scriptDir = os.path.dirname(os.path.realpath(__file__))
@@ -159,11 +161,16 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
                 shutil.move(Datei.fullpath, Datei.fullpath + ".done")
                 Datei.setStatus("OK")
             else:       # Abschluss-Verarbeitung bei Fehler
-                self.log.log("Fehler! ReturnCode: {0}".format(exitCode))            
+                self.log.log("Fehler! ReturnCode: {0}".format(exitCode))
+                self.log.log("Letzter Befehl:\n{0}".format(self.lastcmd))
                 Datei.setStatus("Fehler ({0})".format(exitCode))
         else:
-            self.log.log("Fehler! exitCode={0}, exitStatus={1}".format(exitCode, exitStatus))            
             Datei.setStatus("Fehler {0} / {1}".format(exitCode, exitStatus))
+            if self.processkilled:
+                self.log.log("Harter Abbruch! exitCode={0}, exitStatus={1}".format(exitCode, exitStatus))
+                return  # keine weitere Verarbeitung
+            else:
+                self.log.log("Fehler! exitCode={0}, exitStatus={1}".format(exitCode, exitStatus))
 
         # Abschluss-Arbeiten des aktuellen Prozesses
         self.edit.setText(" ")
@@ -180,6 +187,25 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         else:
             self.convert()              # nächste Datei
 
+    def closeEvent(self, event):
+        if self.running:
+            if self.stopNext:
+                reply = QMessageBox.warning(self, "Achtung!",
+                                             "Laufende Konvertierung abbrechen?\nDas macht die neu erzeugte Ausgabe unbrauchbar!",
+                                             QMessageBox.Yes | QMessageBox.No,
+                                             QMessageBox.No)
+                if reply == QMessageBox.Yes:
+                    # Abbrechen!
+                    self.processkilled = True
+                    self.ende_verarbeitung()
+                    event.accept()
+                else:
+                    self.processkilled = False
+                    event.ignore()  # hier kein weiterer close (wegen self.running)!
+        else:
+            event.accept()  # OK, Schluss jetzt
+
+    # Funktionen
     def ladeFiles(self, ts_pfad):     # lädt die ts-Files
         # Liste der ts-files laden
         i = 0
@@ -232,7 +258,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.log.log("\nStart Konvertierung von {0} . . .".format(self.ts_von))
 
         # cmd montieren
-        cmd = ffmpegBefehl(self.ts_von, self.ts_nach)
+        self.lastcmd = ffmpegBefehl(self.ts_von, self.ts_nach)
         #self.log.log("ffmpeg Aufruf: {0}".format(cmd))
         self.statusbar.showMessage("Umwandlung {0} -> {1}".format(self.ts_von, self.ts_nach))
         self.prstart = timer()
@@ -243,7 +269,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.process.finished.connect(self.onFinished)
         self.process.setProcessChannelMode(QProcess.MergedChannels)
         self.process.readyReadStandardOutput.connect(self.onReadData)        
-        self.process.start(cmd)
+        self.process.start(self.lastcmd)
 
     def progende(self):     # Ende Proc mit Nachfrage
         if self.running:
@@ -268,7 +294,22 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         if self.btn_start.isEnabled():
             self.log.log("Nichts getan!")
         else:
-            if self.stopNext:
+            if self.processkilled:
+                self.process.kill()
+                self.process.waitForFinished(5000)
+                if os.path.isfile(self.ts_nach):    #die defekte Datei löschen
+                    try:  # versuchen, die kaputte *.mkv"-datei zu löschen
+                        os.remove(self.ts_nach)
+                    except:
+                        QMessageBox.information(self, "Achtung!",
+                                                "Die defekte Datei \n{0}\nkonnte NICHT gelöscht werden!".format(
+                                                    self.ts_nach))
+                        self.log.log("Defekte Zieldatei [{0}] konnte NICHT gelöscht werden!")
+                    else:
+                        self.log.log("Defekte Zieldatei wurde gelöscht!")
+                self.log.log("Harter Abbruch!")
+                txt = "Harter Abbruch!"
+            elif self.stopNext:
                 txt = "Die Verarbeitung wurde nach Anforderung vorzeitig beendet!"
                 self.log.log("Ende nach Abbruch!" )
             else:
@@ -278,9 +319,13 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
             if isOK:
                 QMessageBox.information(self, "JobEnde", txt + "\n" + erg)
             else:
-                QMessageBox.warning(self, "JobEnde", txt + "\n" + erg)
+                if self.processkilled:
+                    pass
+                else:
+                    QMessageBox.warning(self, "JobEnde", txt + "\n" + erg)
             self.log.log(erg)
         self.log.close()
+        self.running = False
         self.close()
 
     def findeErgebnis(self):
@@ -304,11 +349,15 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
 
 
 def ffmpegBefehl(ts_von, ts_nach):
-        cmd = "cmd /C c:\\ffmpeg\\bin\\ffmpeg -i"
-        cmd = cmd + ' "{0}"'.format(ts_von)
+        # das "&" stört im Aufruf, es muss maskiert werden
+#        von = ts_von.replace("&", "^&")
+#        nach = ts_nach.replace("&", "^&")
+#        cmd = "cmd /C c:\\ffmpeg\\bin\\ffmpeg -i "
+        cmd = "c:\\ffmpeg\\bin\\ffmpeg -i "
+        cmd = cmd + "\"{0}\" ".format(ts_von)
         #cmd = cmd + ' -map 0:v -map 0:a:0 -c:v h264_nvenc -b:v 1200K -maxrate 1400K -bufsize:v 4000k -bf 2 -g 150 -i_qfactor 1.1 -b_qfactor 1.25 -qmin 1 -qmax 50 -f matroska '
         cmd = cmd + ' -map 0 -c:v h264_nvenc -c:a copy -sn -b:v 1200K -maxrate 1400K -bufsize:v 4000k -bf 2 -g 150 -i_qfactor 1.1 -b_qfactor 1.25 -qmin 1 -qmax 50 -f matroska -y '
-        cmd = cmd + '"{0}"'.format(ts_nach)
+        cmd = cmd + "\"{0}\"".format(ts_nach)
         return cmd
 
 def format_size(flen: int):
