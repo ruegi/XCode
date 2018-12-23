@@ -51,6 +51,9 @@ class tsEintrag:
         self.fullpath = fullpath
         self.name = name
         self.status = status
+
+    def setStatus(self, status):
+        self.status = status
     
     def __str__(self):
         return "{0}: {1} mit Status {2}".format(self.nr, self.fullpath, self.status)
@@ -108,14 +111,13 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.log = logger.logFile(self.logpath + "XCode_"+ self.dt + ".log", TimeStamp=True, printout=False)
 
         self.anzahl = self.ladeFiles(self.quelle)
-        self.statusbar.showMessage("{0} Dateien geladen!".format(self.anzahl))
         if self.anzahl == 0:
             reply = QMessageBox.information( self, "Hinweis",
             "Es gibt im Order {0} keine ts-Dateien.\nNichts zu tun!".format(self.quelle))
             return
         else:
             self.incr = 100.0 / self.anzahl
-        
+            self.statusbar.showMessage("{0} Dateien geladen!".format(self.anzahl))
     # Slots
     def StartProcess(self, cmd):
         self.process=QProcess()
@@ -151,15 +153,15 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
                 self.log.log("Dauer: {0}; ReturnCode: {1}".format(time_str, exitCode))
                 self.log.log("OK")
                 shutil.move(self.ts_von, self.ts_von + ".done")
-                Datei.status = "OK" 
-                # self.tbl_files.setItem(self.Zeile, 1, QTableWidgetItem("OK"))                
+                Datei.setStatus("OK")
+                # self.tbl_files.setItem(self.Zeile, 1, QTableWidgetItem("OK"))
             else:
                 self.log.log("Fehler! ReturnCode: {0}".format(exitCode))            
-                Datei.status = "Fehler ({0})".format(exitCode)                
+                Datei.setStatus("Fehler ({0})".format(exitCode))
                 # self.tbl_files.setItem(self.Zeile, 1, QTableWidgetItem("Fehler ({0})".format(exitCode)))                
         else:
             self.log.log("Fehler! exitCode={0}, exitStatus={1}".format(exitCode, exitStatus))            
-            Datei.status = "Fehler {0} / {1}".format(exitCode, exitStatus)
+            Datei.setStatus("Fehler {0} / {1}".format(exitCode, exitStatus))
 #            self.tbl_files.setItem(self.Zeile, 1, QTableWidgetItem("RUN-Fehler ({0})".format(exitStatus)))
           
         # Abschluss-Arbeiten des aktuellen Prozesses
@@ -208,8 +210,9 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
                     
     def convert(self):
         '''
-        konvertiert eine ts-Datei über einen separaten Prozess
-        die aktuelle Zeile wird als Instanzvariable erwartet
+        - konvertiert eine ts-Datei über einen separaten Prozess
+        - die aktuelle Zeile wird als Instanzvariable erwartet
+        - startet die Loop über die Signals/Slots
         '''
         self.pbarpos += self.incr
         self.probar1.setValue(self.pbarpos)
@@ -217,28 +220,26 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         # self.probar2.setValue(0)
         self.btn_start.setEnabled(False)
 
-        row = self.Zeile
-        Datei = self.tsliste[row]
+        Datei = self.tsliste[self.Zeile]
             
-        Datei.status = "running..."
+        Datei.setStatus("running...")
         self.refreshTable(False)
-        self.tbl_files.selectRow(row)
+        self.tbl_files.selectRow(self.Zeile)
         self.ts_nach = self.ziel + Datei.name[:-3] + ".mkv"
         self.ts_von = Datei.fullpath
         self.log.log("\nStart Konvertierung von {0} . . .".format(self.ts_von))
         self.probar1.setValue(self.pbarpos)
-        self.xcode(self.ts_von, self.ts_nach)
-
-    def xcode(self, von, nach):
+#        self.xcode(self.ts_von, self.ts_nach)
+#        def xcode(self, von, nach):
         # montieren des cmd-Befehls, um ffmpeg zu starten
         cmd = "cmd /C c:\\ffmpeg\\bin\\ffmpeg -i"
-        cmd = cmd + ' "{0}"'.format(von)
+        cmd = cmd + ' "{0}"'.format(self.ts_von)
         #cmd = cmd + ' -map 0:v -map 0:a:0 -c:v h264_nvenc -b:v 1200K -maxrate 1400K -bufsize:v 4000k -bf 2 -g 150 -i_qfactor 1.1 -b_qfactor 1.25 -qmin 1 -qmax 50 -f matroska '
         cmd = cmd + ' -map 0 -c:v h264_nvenc -c:a copy -sn -b:v 1200K -maxrate 1400K -bufsize:v 4000k -bf 2 -g 150 -i_qfactor 1.1 -b_qfactor 1.25 -qmin 1 -qmax 50 -f matroska -y '
-        cmd = cmd + '"{0}"'.format(nach)
+        cmd = cmd + '"{0}"'.format(self.ts_nach)
         self.log.log("ffmpeg Aufruf: {0}".format(cmd))
         self.edit.setText(cmd)
-        self.statusbar.showMessage("Umwandlung {0} -> {1}".format(von, nach))
+        self.statusbar.showMessage("Umwandlung {0} -> {1}".format(self.ts_von, self.ts_nach))
         self.prstart = timer()
         # Prozess lostreten
         self.running = True

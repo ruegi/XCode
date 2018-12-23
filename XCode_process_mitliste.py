@@ -16,20 +16,14 @@ from PyQt5.QtWidgets import (QMainWindow,
                              QTextEdit, 
                              QTableWidget,
                              QTableWidgetItem,
-#                             QComboBox,
                              QHeaderView,
-#                             QFileDialog,
-                             QLabel, 
+                             QLabel,
                              QLineEdit, 
                              QPushButton,
-#                             QRadioButton,
-#                             QCheckBox,
                              QWidget,
                              QHBoxLayout, 
                              QVBoxLayout, 
-#                             QGroupBox,
-#                             QButtonGroup,
-                             QApplication, 
+                             QApplication,
                              QMessageBox)
 
 from PyQt5.QtCore import QProcess, QObject
@@ -119,9 +113,11 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.dt = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         self.log = logger.logFile(self.logpath + "XCode_"+ self.dt + ".log", TimeStamp=True, printout=False)
 
-        self.ladeFiles(self.quelle)
+
         self.log.log("Umwandlung mit:")
         self.log.log(ffmpegBefehl("{EingabeDatei}", "{AusgabeDatei}") + "\n")
+
+        self.ladeFiles(self.quelle)
 
         if self.tsliste.size == 0:
             reply = QMessageBox.information( self, "Hinweis",
@@ -211,7 +207,8 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         i = 0
         for entry in os.scandir(ts_pfad):
             if entry.is_file():
-                if entry.name[-3:] == ".ts":
+                fname, fext = os.path.splitext(entry.name)
+                if fext in [".ts", ".mpg", ".mp4", ".mkv", ".mv4", ".mpeg", ".avi"]:
                     i += 1
                     fullpath = os.path.join(ts_pfad, entry.name)
                     tse = tsEintrag(i, fullpath, entry.name, "waiting...  ")
@@ -253,7 +250,8 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         Datei.setStatus("running...")
         self.refreshTable(False)
         self.tbl_files.selectRow(row)
-        self.ts_nach = self.ziel + Datei.name[:-3] + ".mkv"
+        fname, fext = os.path.splitext(Datei.name)
+        self.ts_nach = self.ziel + fname + ".mkv"
         self.ts_von = Datei.fullpath
         self.log.log("\nStart Konvertierung von {0} . . .".format(self.ts_von))
 
@@ -356,7 +354,12 @@ def ffmpegBefehl(ts_von, ts_nach):
         cmd = "c:\\ffmpeg\\bin\\ffmpeg -i "
         cmd = cmd + "\"{0}\" ".format(ts_von)
         #cmd = cmd + ' -map 0:v -map 0:a:0 -c:v h264_nvenc -b:v 1200K -maxrate 1400K -bufsize:v 4000k -bf 2 -g 150 -i_qfactor 1.1 -b_qfactor 1.25 -qmin 1 -qmax 50 -f matroska '
-        cmd = cmd + ' -map 0 -c:v h264_nvenc -c:a copy -sn -b:v 1200K -maxrate 1400K -bufsize:v 4000k -bf 2 -g 150 -i_qfactor 1.1 -b_qfactor 1.25 -qmin 1 -qmax 50 -f matroska -y '
+        # cmd = cmd + '-c:v h264_nvenc -c:a copy -c:s copy -b:v 1200K -maxrate 1400K -bufsize:v 4000k -bf 2 -g 150 -i_qfactor 1.1 -b_qfactor 1.25 -qmin 1 -qmax 50 -f matroska -y '
+        # die folgenden Parameter haben die Eigenschaften (2018-12-13):
+        #  - gute Videoqualität per nvenc;
+        #  - alle Audios werden kopiert
+        #  - Deutscher Untertitel wirde als dvdsub einkopiert
+        cmd = cmd + '-map 0 -c:v h264_nvenc -c:a copy -c:s dvdsub -profile:v high -f matroska -y '
         cmd = cmd + "\"{0}\"".format(ts_nach)
         return cmd
 
