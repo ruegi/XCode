@@ -11,8 +11,7 @@ angeregt durch start_process.py und ProcessTest.py
 
 """
 
-# import PyQt5.QtWidgets # Import the PyQt5 module we'll need
-from PyQt5.QtWidgets import (QMainWindow, 
+from PyQt5.QtWidgets import (QMainWindow,
                              QTextEdit, 
                              QTableWidget,
                              QTableWidgetItem,
@@ -36,6 +35,7 @@ import logger
 import sys
 import shutil
 import os
+import ffcmd
 
 import liste as liste  # hält eine Liste der umzuwandelnden Dateien
 
@@ -62,7 +62,10 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         
         self.setupUi(self)  # This is defined in XCodeUI.py file automatically
                             # It sets up layout and widgets that are defined
+
         # Instanz-Variablen
+        self.ff = ffcmd.ffmpegcmd()
+
         self.process = None
         self.processkilled = False
         self.quelle  = "C:\\ts\\"
@@ -115,7 +118,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
 
 
         self.log.log("Umwandlung mit:")
-        self.log.log(ffmpegBefehl("{EingabeDatei}", "{AusgabeDatei}") + "\n")
+        self.log.log(self.ff.ffXcodeCmd("{EingabeDatei}", "{AusgabeDatei}") + "\n")
 
         self.ladeFiles(self.quelle)
 
@@ -256,7 +259,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.log.log("\nStart Konvertierung von {0} . . .".format(self.ts_von))
 
         # cmd montieren
-        self.lastcmd = ffmpegBefehl(self.ts_von, self.ts_nach)
+        self.lastcmd = self.ff.ffXcodeCmd(self.ts_von, self.ts_nach)
         #self.log.log("ffmpeg Aufruf: {0}".format(cmd))
         self.statusbar.showMessage("Umwandlung {0} -> {1}".format(self.ts_von, self.ts_nach))
         self.prstart = timer()
@@ -359,7 +362,7 @@ def ffmpegBefehl(ts_von, ts_nach):
         #  - gute Videoqualität per nvenc;
         #  - alle Audios werden kopiert
         #  - Deutscher Untertitel wirde als dvdsub einkopiert
-        cmd = cmd + '-map 0 -c:v h264_nvenc -c:a copy -c:s dvdsub -profile:v high -f matroska -y '
+        cmd = cmd + '-map 0 -c:v h264_nvenc -c:a copy -c:s dvdsub  -profile:v main -preset fast -f matroska -y '
         cmd = cmd + "\"{0}\"".format(ts_nach)
         return cmd
 
