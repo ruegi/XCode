@@ -10,7 +10,6 @@ angeregt durch start_process.py und ProcessTest.py
 
 
 """
-
 from PyQt5.QtWidgets import (QMainWindow,
                              QTextEdit, 
                              QTableWidget,
@@ -39,9 +38,12 @@ import ffcmd
 
 import liste as liste  # hält eine Liste der umzuwandelnden Dateien
 
-# from subprocess import Popen, CREATE_NEW_CONSOLE
-
 import XCodeUI # Hauptfenster; mit pyuic aus der UI-Datei konvertiert
+
+class Konstanten:                       # Konstanten des Programms
+    quelle  = "C:\\ts\\"
+    ziel    = "E:\\Filme\\schnitt\\"
+    logpath = "E:\\Filme\\log\\"
 
 class tsEintrag:
     def __init__(self, nr, fullpath, name, status):
@@ -65,12 +67,11 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
 
         # Instanz-Variablen
         self.ff = ffcmd.ffmpegcmd()
-
         self.process = None
         self.processkilled = False
-        self.quelle  = "C:\\ts\\"
-        self.ziel    = "E:\\Filme\\schnitt\\"
-        self.logpath = "E:\\Filme\\log\\"
+        self.quelle  = Konstanten.quelle
+        self.ziel    = Konstanten.ziel
+        self.logpath = Konstanten.logpath
         self.tsliste = liste.liste()  # Liste der ts-Objekte
         self.running = False    # im Prozess aktiv
         self.stopNext = False   # HalteSignal
@@ -118,7 +119,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
 
 
         self.log.log("Umwandlung mit:")
-        self.log.log(self.ff.ffXcodeCmd("{EingabeDatei}", "{AusgabeDatei}") + "\n")
+        self.log.log(self.ff.ffXcodeCmd("{EingabeDatei}", "{AusgabeDatei}", nurLog=True) + "\n")
 
         self.ladeFiles(self.quelle)
 
@@ -242,7 +243,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         '''
         # GUI anpassen
         self.pbarpos += self.incr
-        self.probar1.setValue(self.pbarpos)
+        self.probar1.setValue(round(self.pbarpos))
         self.probar2.setRange(0,0)  # start hin-her
         # self.probar2.setValue(0)
         self.btn_start.setEnabled(False)
@@ -258,9 +259,9 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.ts_von = Datei.fullpath
         self.log.log("\nStart Konvertierung von {0} . . .".format(self.ts_von))
 
-        # cmd montieren
+        # cmd montieren        
         self.lastcmd = self.ff.ffXcodeCmd(self.ts_von, self.ts_nach)
-        #self.log.log("ffmpeg Aufruf: {0}".format(cmd))
+        self.log.log("ffmpeg Aufruf: {0}".format(self.lastcmd))
         self.statusbar.showMessage("Umwandlung {0} -> {1}".format(self.ts_von, self.ts_nach))
         self.prstart = timer()
 
@@ -351,9 +352,8 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
 
 def ffmpegBefehl(ts_von, ts_nach):
         # das "&" stört im Aufruf, es muss maskiert werden
-#        von = ts_von.replace("&", "^&")
-#        nach = ts_nach.replace("&", "^&")
-#        cmd = "cmd /C c:\\ffmpeg\\bin\\ffmpeg -i "
+        von = ts_von.replace("&", "^&")
+        nach = ts_nach.replace("&", "^&")
         cmd = "c:\\ffmpeg\\bin\\ffmpeg -i "
         cmd = cmd + "\"{0}\" ".format(ts_von)
         #cmd = cmd + ' -map 0:v -map 0:a:0 -c:v h264_nvenc -b:v 1200K -maxrate 1400K -bufsize:v 4000k -bf 2 -g 150 -i_qfactor 1.1 -b_qfactor 1.25 -qmin 1 -qmax 50 -f matroska '
@@ -362,7 +362,9 @@ def ffmpegBefehl(ts_von, ts_nach):
         #  - gute Videoqualität per nvenc;
         #  - alle Audios werden kopiert
         #  - Deutscher Untertitel wirde als dvdsub einkopiert
-        cmd = cmd + '-map 0 -c:v h264_nvenc -c:a copy -c:s dvdsub  -profile:v main -preset fast -f matroska -y '
+        #cmd = cmd + '-map 0 -c:v h264_nvenc -c:a copy -c:s dvdsub  -profile:v main -preset fast -f matroska -y '
+        cmd = cmd + '-map 0 -c:v hevc_nvenc -c:a copy -c:s dvdsub  -profile:v main -preset fast -f matroska -y '
+        
         cmd = cmd + "\"{0}\"".format(ts_nach)
         return cmd
 
