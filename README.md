@@ -9,7 +9,7 @@ Der Transcode wird durch die Ini-Datei "ffcmd.ini" gesteuert, allerdings wird di
 Einzelne Filme können per Doppelklick in der GUI für das transkodieren ab- und angeschaltet werden.
 
 2021-04-10:
-Der derzeitige Hauptfilm ist XCode-mit-Liste6.py, der in zukünftigen Versionen einfach nur XCode heißen wird.
+Der derzeitige Hauptfilm ist XCode_process_mitliste.py, der in zukünftigen Versionen einfach nur XCode.py heißen wird.
 
 ruegi
 
