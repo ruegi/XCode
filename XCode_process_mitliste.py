@@ -44,10 +44,13 @@ class Konstanten:                       # Konstanten des Programms
     quelle  = "C:\\ts\\"
     ziel    = "E:\\Filme\\schnitt\\"
     logpath = "E:\\Filme\\log\\"
+    version = "1.0"
+    version_date = "2021-04-09"
 
 class tsEintrag:
     def __init__(self, nr, fullpath, name, status):
         self.nr = nr
+        self.X = "X"
         self.fullpath = fullpath
         self.name = name
         self.status = status
@@ -57,6 +60,18 @@ class tsEintrag:
 
     def setStatus(self, status):
         self.status = status
+    
+    def toggleX(self):
+        if self.status == "OK":
+            return   # keine Änderung, da bereits fertig
+
+        if self.X == "X":
+            self.X = ""
+            self.status = "-skip-"
+        else:
+            self.X = "X"
+            self.status = "waiting"
+        return
 
 class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
     def __init__(self):               
@@ -77,7 +92,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.stopNext = False   # HalteSignal
 #        self.Zeile = 0         # aktuelle Zeile (0 - (n-1))
         self.incr = 0.0         # Increment des Procbar1
-        self.pbarpos = 0        # Pos des PorcBar1
+        self.pbarpos = 0        # Pos des ProcBar1
         self.prstart = 0        # start timer des prozesses
         self.prend = 0          # end timer
         self.ts_von = ""        # aktuelle quelle
@@ -89,12 +104,14 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.setWindowIcon(QIcon(scriptDir + os.path.sep + 'XC.ico'))
 
         # Feintuning der Widgets
-        self.tbl_files.setHorizontalHeaderLabels(('Nr', 'Status', 'Datei'))
+        self.tbl_files.setHorizontalHeaderLabels(("Nr", 'X', 'Datei', 'Status'))
         self.tbl_files.setAlternatingRowColors(True)
-        header = self.tbl_files.horizontalHeader()       
+        header = self.tbl_files.horizontalHeader()  
         header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.Stretch)
+
+        self.lbl_version.setText( "XCode Version " + Konstanten.version + " vom " + Konstanten.version_date )
 
         self.edit.setReadOnly(True)
         # self.edit.LineWrapMode = QTextEdit.NoWrap
@@ -103,7 +120,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         # self.edit.width = 400
         # self.edit.setAcceptRichText(True)
         self.edit.setWindowTitle("Prozess-Ausgabe")
-        self.edit.setText("")
+        self.edit.setText("")        
         
         self.led_pfad.setDisabled(True)
         self.probar1.setValue(0)
@@ -112,6 +129,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         # connects
         self.btn_ende.clicked.connect(self.progende)
         self.btn_start.clicked.connect(self.convert)
+        self.tbl_files.doubleClicked.connect(self.toggleX)
         
         # Abschluss Init; laden der Daten
         self.dt = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -138,6 +156,19 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.edit.moveCursor(QTextCursor.End)
         # print("got data!")
 
+    def toggleX(self):
+        # zunächst die aktuelle Zeile finden        
+        idx = self.tbl_files.selectedIndexes()[0]
+        row = idx.row()
+        Datei = self.tsliste.findRow(row)
+        if Datei is None:
+            return
+        else:
+            Datei.toggleX()
+            self.refreshTable(False)    # kein neuaufbau
+        return
+          
+
     def onFinished(self,  exitCode,  exitStatus):
         self.prend = timer()
         self.running = False
@@ -146,7 +177,14 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         h, m = divmod(m, 60)
         time_str = "{0:02.0f}:{1:02.0f}:{2:02.0f}".format(h, m, s)     
         Datei = self.tsliste.lastObj
-        
+        if not Datei.X == "X":
+            self.log.log(f">>> {Datei.nr} - {Datei.name} übersprungen!" )
+            if self.tsliste.findNext() is None:
+                self.ende_verarbeitung()    # fertig
+            else:
+                self.convert()              # nächste Datei
+                return
+
         # print("Finished; exitCode={0}, exitStatus={1}".format(exitCode, exitStatus))
         if exitStatus == 0:
             if exitCode == 0:   # Abschluss-Verarbeitung, wenn alles gut gelaufen ist
@@ -182,6 +220,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         if self.stopNext:   # sofort aufhören
                 self.ende_verarbeitung()
                 return            
+       
         if self.tsliste.findNext() is None:
             self.ende_verarbeitung()    # fertig
         else:
@@ -233,23 +272,29 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
             if neuaufbau:
                 self.tbl_files.insertRow(nr)
             self.tbl_files.setItem(nr, 0, QTableWidgetItem(str(ts.nr)))
-            self.tbl_files.setItem(nr, 1, QTableWidgetItem(ts.status))
+            self.tbl_files.setItem(nr, 1, QTableWidgetItem(ts.X))
             self.tbl_files.setItem(nr, 2, QTableWidgetItem(ts.name))
+            self.tbl_files.setItem(nr, 3, QTableWidgetItem(ts.status))
         self.tbl_files.selectRow(self.tsliste.lastPos)
 
     def convert(self):
         '''
         konvertiert eine ts-Datei über einen separaten Prozess
         '''
+        row = self.tsliste.lastPos
+        Datei = self.tsliste.lastObj
+        # keine Verarbeitung, falls kein X gesetzt wurde
+        if not Datei.X == "X":
+            Datei.setStatus("skipped")
+            self.onFinished(0, 0)
+            return
+
         # GUI anpassen
         self.pbarpos += self.incr
         self.probar1.setValue(round(self.pbarpos))
         self.probar2.setRange(0,0)  # start hin-her
         # self.probar2.setValue(0)
         self.btn_start.setEnabled(False)
-
-        row = self.tsliste.lastPos
-        Datei = self.tsliste.lastObj
             
         Datei.setStatus("running...")
         self.refreshTable(False)
@@ -282,7 +327,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
 
             if reply == QMessageBox.Yes:
                 self.stopNext = True
-                self.statusbar.showMessage("Die Konverierung endet nach dem aktuellen Porzess!")
+                self.statusbar.showMessage("Die Konverierung endet nach dem aktuellen Prozess!")
                 self.btn_ende.setText("Abbruch angefordert!")
                 self.btn_ende.setDisabled(True)
         else:
@@ -332,20 +377,23 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
 
     def findeErgebnis(self):
         wait = 0
+        skipped = 0
         ok = 0
         err = 0
         for ts in self.tsliste.liste:
             if ts.status == "OK":
                 ok += 1
-            elif ts.status == "waiting...  ":
+            elif ts.status == "waiting...  ":                
                 wait += 1
+            elif ts.status == "skipped":
+                skipped += 1
             else:
                 err +=1
         if (wait == 0) & (err == 0) & (ok > 0):
-            txt = "\nAlles OK!\n\nOK: {0}\n".format(ok) + "Fehler: {0}\n".format(err) + "Nicht bearbeitet: {0}\n".format(wait)
+            txt = f"\nAlles OK!\n\nOK: {ok}\n" + f"Fehler: {err}\n".format(err) + f"Nicht bearbeitet: {wait + skipped}\n"
             isOK = True
         else:
-            txt = "\nErgebnis\n\nOK: {0}\n".format(ok) + "Fehler: {0}\n".format(err) + "Nicht bearbeitet: {0}\n".format(wait)
+            txt = f"\nErgebnis!\n\nOK: {ok}\n" + f"Fehler: {err}\n".format(err) + f"Nicht bearbeitet: {wait + skipped}\n"
             isOK = False
         return (txt, isOK)
 

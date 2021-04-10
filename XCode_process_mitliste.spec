@@ -4,7 +4,7 @@ block_cipher = None
 
 
 a = Analysis(['XCode_process_mitliste.py'],
-             pathex=['D:\\DEV\\Py\\XCode'],
+             pathex=['d:\\DEV\\Py\\XCode'],
              binaries=[],
              datas=[],
              hiddenimports=[],

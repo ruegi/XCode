@@ -1,0 +1,6 @@
+*.txt
+*.alt
+dist/
+__pycache__/
+build/
+idea/

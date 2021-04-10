@@ -1,19 +1,21 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file '.\XCodeUI.ui'
+# Form implementation generated from reading ui file 'XCodeUI.ui'
 #
-# Created by: PyQt5 UI code generator 5.9.2
+# Created by: PyQt5 UI code generator 5.13.2
 #
 # WARNING! All changes made in this file will be lost!
 
+
 from PyQt5 import QtCore, QtGui, QtWidgets
+
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
-        MainWindow.resize(817, 713)
+        MainWindow.resize(817, 712)
         icon = QtGui.QIcon()
-        icon.addPixmap(QtGui.QPixmap("../XCode/XC.ico"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        icon.addPixmap(QtGui.QPixmap("XC.ico"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         MainWindow.setWindowIcon(icon)
         self.centralwidget = QtWidgets.QWidget(MainWindow)
         self.centralwidget.setObjectName("centralwidget")
@@ -41,7 +43,7 @@ class Ui_MainWindow(object):
         self.tbl_files.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.tbl_files.setCornerButtonEnabled(True)
         self.tbl_files.setRowCount(5)
-        self.tbl_files.setColumnCount(3)
+        self.tbl_files.setColumnCount(4)
         self.tbl_files.setObjectName("tbl_files")
         self.tbl_files.verticalHeader().setVisible(False)
         self.formLayout.setWidget(3, QtWidgets.QFormLayout.FieldRole, self.tbl_files)
@@ -102,6 +104,11 @@ class Ui_MainWindow(object):
         self.btn_start.setObjectName("btn_start")
         self.horizontalLayout.addWidget(self.btn_start)
         self.formLayout.setLayout(12, QtWidgets.QFormLayout.FieldRole, self.horizontalLayout)
+        self.lbl_version = QtWidgets.QLabel(self.centralwidget)
+        self.lbl_version.setLayoutDirection(QtCore.Qt.RightToLeft)
+        self.lbl_version.setAutoFillBackground(True)
+        self.lbl_version.setObjectName("lbl_version")
+        self.formLayout.setWidget(13, QtWidgets.QFormLayout.FieldRole, self.lbl_version)
         self.verticalLayout.addLayout(self.formLayout)
         MainWindow.setCentralWidget(self.centralwidget)
         self.statusbar = QtWidgets.QStatusBar(MainWindow)
@@ -128,6 +135,7 @@ class Ui_MainWindow(object):
         self.lbl_fortschritt.setText(_translate("MainWindow", "Fortschritt"))
         self.btn_ende.setText(_translate("MainWindow", "Ende"))
         self.btn_start.setText(_translate("MainWindow", "Start"))
+        self.lbl_version.setText(_translate("MainWindow", "Version 0.0 vom 00.00.2021"))
 
 
 if __name__ == "__main__":
@@ -138,4 +146,3 @@ if __name__ == "__main__":
     ui.setupUi(MainWindow)
     MainWindow.show()
     sys.exit(app.exec_())
-

@@ -76,6 +76,13 @@ class liste():
                 return self.lastObj
         else:
             return None
+    
+    def findRow(self, row):
+        if row < self.size:
+            return self.liste[row]
+        else:
+            return None
+            
 
 if __name__ == '__main__': 
     l = liste()

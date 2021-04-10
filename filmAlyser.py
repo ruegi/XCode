@@ -28,22 +28,23 @@ def get_encoding(filmname, Test=False):
         for line in buf:
             line = line.strip()            
             # auf die passende Zeile durchblättern
-            if line.startswith('Stream #0:0'):
-                felder = line.split(" ")                
-                # i = 0
-                # for f in felder:
-                #     print(f"({i}) {f}")
-                #     i+=1
-                # print(f"Der gesuchte Parameter ist: ({felder[3]})")
-                codec = felder[3]
-                if codec == "h264":
-                    return "h264"
-                elif codec == "mpeg2video":
-                    return "mpg"
-                elif codec == "hevc":
-                    return "hevc"
-                else:
-                    return "not known : " + codec
+            if line.startswith('Stream #0:'):
+                felder = line.split(" ")
+                if felder[2] == "Video:":
+                    # i = 0
+                    # for f in felder:
+                    #     print(f"({i}) {f}")
+                    #     i+=1
+                    # print(f"Der gesuchte Parameter ist: ({felder[3]})")
+                    codec = felder[3]
+                    if codec == "h264":
+                        return "h264"
+                    elif codec == "mpeg2video":
+                        return "mpg"
+                    elif codec == "hevc":
+                        return "hevc"
+                    else:
+                        return "not known : " + codec                
     else:
         print(f'Fehler {pobj.returncode}')
         print(f'{pobj.stderr}')
@@ -52,6 +53,8 @@ def get_encoding(filmname, Test=False):
 if __name__ == "__main__":
     # codec = get_encoding(r'C:\ts\Ame_+_Yuki_-_Die_Wolfskinder.ts')
     # get_encoding(r'C:\ts\Das_letzte_Problem.ts')
-    codec = get_encoding(r'c:\ts\Blood_&_Treasure_-_Kleopatras_Fluch_(1-1)_Der_Agent_und_die_Meisterdiebin.ts', Test=False)
+    codec = get_encoding(r'C:\ts\Geständnisse_-_Confessions_of_a_Dangerous_Mind.mpg', Test=False)
+    # c:\ffmpeg\bin\ffmpeg -hide_banner -vsync 0 -hwaccel cuvid -c:v h264_cuvid -i "C:\ts\Geständnisse_-_Confessions_of_a_Dangerous_Mind.mpg" -map 0 -c:v hevc_nvenc -cq 20 -preset slow -c:a copy -c:s dvdsub  -f matroska -y "E:\Filme\schnitt\Geständnisse_-_Confessions_of_a_Dangerous_Mind.mkv"
+
     print(codec)
 
