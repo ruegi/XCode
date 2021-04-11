@@ -41,11 +41,11 @@ import liste as liste  # hält eine Liste der umzuwandelnden Dateien
 import XCodeUI # Hauptfenster; mit pyuic aus der UI-Datei konvertiert
 
 class Konstanten:                       # Konstanten des Programms
-    quelle  = "C:\\ts\\"
-    ziel    = "E:\\Filme\\schnitt\\"
-    logpath = "E:\\Filme\\log\\"
-    version = "1.0"
-    version_date = "2021-04-09"
+    QUELLE  = "C:\\ts\\"
+    ZIEL    = "E:\\Filme\\schnitt\\"
+    LOGPATH = "E:\\Filme\\log\\"
+    VERSION = "1.1"
+    VERSION_DAT = "2021-04-11"
 
 class tsEintrag:
     def __init__(self, nr, fullpath, name, status):
@@ -84,9 +84,9 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.ff = ffcmd.ffmpegcmd()
         self.process = None
         self.processkilled = False
-        self.quelle  = Konstanten.quelle
-        self.ziel    = Konstanten.ziel
-        self.logpath = Konstanten.logpath
+        self.quelle  = Konstanten.QUELLE
+        self.ziel    = Konstanten.ZIEL
+        self.logpath = Konstanten.LOGPATH
         self.tsliste = liste.liste()  # Liste der ts-Objekte
         self.running = False    # im Prozess aktiv
         self.stopNext = False   # HalteSignal
@@ -111,12 +111,15 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.Stretch)
 
-        self.lbl_version.setText( "XCode Version " + Konstanten.version + " vom " + Konstanten.version_date )
+        self.lbl_version.setText( "XCode Version " + Konstanten.VERSION + " vom " + Konstanten.VERSION_DAT )
 
         self.edit.setReadOnly(True)
         # self.edit.LineWrapMode = QTextEdit.NoWrap
-        self.edit.setTextBackgroundColor (QColor("lightyellow"))
-        self.edit.setStyleSheet("background-color: lightyellow;")
+        
+        self.edit.setTextColor(QColor("White"))
+        cName = "darkCyan"
+        self.edit.setTextBackgroundColor (QColor(cName))
+        self.edit.setStyleSheet(f"background-color: {cName};")
         # self.edit.width = 400
         # self.edit.setAcceptRichText(True)
         self.edit.setWindowTitle("Prozess-Ausgabe")
@@ -433,7 +436,34 @@ def format_size(flen: int):
 
 
 def main():
+    StyleSheet = '''
+#probar1 {
+    border: 2px solid #2196F3;
+    border-radius: 5px;
+    background-color: #E0E0E0;
+    text-align: center
+}
+#probar1::chunk {
+    background-color: #2196F3;
+}
+
+#probar2 {
+    color: #2196F3;
+    border: 2px solid #2196F3;
+    border-radius: 5px;
+    background-color: #E0E0E0;
+}
+#probar2::chunk {
+    background-color: #2196F3;
+}
+
+'''
+#     border: 2px solid #2196F3;
+#     border-radius: 5px;
+
+
     app = QApplication(sys.argv)  # A new instance of QApplication
+    app.setStyleSheet(StyleSheet)
     form = XCodeApp()             # We set the form to be our ExampleApp (design)
     if form.tsliste.size == 0:    # nix zu tun!
         return
