@@ -40,10 +40,19 @@ class Ui_MainWindow(object):
         sizePolicy.setHeightForWidth(self.tbl_files.sizePolicy().hasHeightForWidth())
         self.tbl_files.setSizePolicy(sizePolicy)
         self.tbl_files.setMinimumSize(QtCore.QSize(0, 300))
+        self.tbl_files.setStyleSheet("QProgressBar {\n"
+"    border: 2px solid #2196F3;\n"
+"    border-radius: 5px;\n"
+"    background-color: #E0E0E0;\n"
+"    text-align: center\n"
+"}\n"
+"QProgressBar::chunk {\n"
+"    background-color: #2196F3;\n"
+"}")
         self.tbl_files.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.tbl_files.setCornerButtonEnabled(True)
         self.tbl_files.setRowCount(5)
-        self.tbl_files.setColumnCount(4)
+        self.tbl_files.setColumnCount(6)
         self.tbl_files.setObjectName("tbl_files")
         self.tbl_files.verticalHeader().setVisible(False)
         self.formLayout.setWidget(3, QtWidgets.QFormLayout.FieldRole, self.tbl_files)

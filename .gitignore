@@ -4,3 +4,6 @@ dist/
 __pycache__/
 build/
 idea/
+*.png
+tst_*.py
+.qt_for_*

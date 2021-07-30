@@ -8,11 +8,23 @@ Name: ffcmd
 laden der ffmpeg-Befehle aus einer Datei und montieren des Transcode-Aufrufs
 
 Änderungen:
-2020-02-04  rg      Analyse des Codierung der Quelldatei eingebaut
+2020-02-04  rg      Analyse der Codierung der Quelldatei eingebaut
 """
 from pathlib import Path
 from os.path import split, splitext
+import configparser
 import filmAlyser
+
+muster_ffcmd = '''\
+[SD]
+cmd = ffmpeg -hide_banner -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset fast -profile:v main10 -pix_fmt p010le -crf 28 -b:v 0 -maxrate 2M -bufsize 4M -dn -c:a copy -c:s dvdsub -y "{AusgabeDatei}"
+
+[HD]
+cmd = ffmpeg -hide_banner -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset slow -profile:v main10 -pix_fmt p010le -crf 23 -b:v 0 -maxrate 3M -bufsize 6M -dn -c:a copy -c:s dvdsub -y "{AusgabeDatei}"
+
+[FullHD]
+cmd = ffmpeg -hide_banner -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset slow -profile:v main10 -pix_fmt p010le -crf 23 -b:v 0 -maxrate 4M -bufsize 8M -dn -c:a copy -c:s dvdsub -y "{AusgabeDatei}"
+'''
 
 class ffmpegcmd:
 
@@ -25,20 +37,23 @@ class ffmpegcmd:
         # print(head, tail, ext, self.initFile)
         # init Command-String für das Transcodieren herstellen oder lesen
         pFile = Path(self.initFile)
-        if pFile.is_file():
-            with open(self.initFile, "r") as iniFHdl:
-                cmd = iniFHdl.read()
-        else: # sofort eine default-Ini-Datei mit default Eintrag erzeugen
-            cmd = "c:\\ffmpeg\\bin\\ffmpeg -vsync 0 -hwaccel cuvid -c:v {Codierung} -i "
-            cmd = cmd + "\"{0}\" ".format("{EingabeDatei}")
-            cmd = cmd + '-map 0 -c:v hevc_nvenc -c:a copy -c:s dvdsub  -profile:v main -preset slow -f matroska -y '
-            cmd = cmd + "\"{0}\"".format("{AusgabeDatei}")
+        if not pFile.is_file():
+        #     with open(self.initFile, "r") as iniFHdl:
+        #         cmd = iniFHdl.read()
+        # else: # sofort eine default-Ini-Datei mit default Eintrag erzeugen            
+            cmd = muster_ffcmd
             with open(self.initFile, "w") as iniFHdl:
                 iniFHdl.write(cmd)
-        # den aktuellen ffmpeg-Aufruf merken
-        self.ffmCmd = cmd
+        
+        # die aktuellen ffmpeg-Aufrufe merken
+        config = configparser.ConfigParser()   
+        config.read(self.initFile)
+        self.cmd_SD =  config.get('SD', 'cmd', fallback='ffmpeg -hide_banner -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset fast -profile:v main10 -pix_fmt p010le -crf 28 -b:v 0 -maxrate 2M -bufsize 4M -dn -c:a copy -c:s dvdsub -y "{AusgabeDatei}"')        
+        self.cmd_HD =  config.get('HD', 'cmd', fallback='ffmpeg -hide_banner -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset slow -profile:v main10 -pix_fmt p010le -crf 23 -b:v 0 -maxrate 3M -bufsize 6M -dn -c:a copy -c:s dvdsub -y "{AusgabeDatei}"')
+        self.cmd_FullHD = config.get('FullHD', 'cmd', fallback='ffmpeg -hide_banner -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset slow -profile:v main10 -pix_fmt p010le -crf 23 -b:v 0 -maxrate 4M -bufsize 8M -dn -c:a copy -c:s dvdsub -y "{AusgabeDatei}"')
 
-    def ffXcodeCmd(self, ts_von, ts_nach, nurLog=False):
+
+    def ffXcodeCmd(self, ts_von, ts_nach, ts_weite, nurLog=False):
         # veraltet: 
         # das "&" stört unter Windows im Aufruf, es muss maskiert werden
         # nach Tests überflüssig! rg
@@ -48,27 +63,42 @@ class ffmpegcmd:
         # -
         # die Codierung der QuellDatei eimbauen
         if nurLog:
-            return self.ffmCmd
+            return "SD:  " + self.cmd_SD + "\nHD:  " + self.cmd_HD + "\nFullHD: " + self.cmd_FullHD
         # zunächst die Codierung herausbekommen       
-        codier = filmAlyser.get_encoding(ts_von)
-        parm = "h264_cuvid"     # default
-        if codier is not None:
-            if codier == "h264":
-                parm = "h264_cuvid"
-            elif codier == "hevc":
-                parm = "hevc_cuvid"
-            elif codier == "mpg":
-                parm = "mpeg2_cuvid"
-            else:
-                parm = "h264_cuvid" # auf gut Glück...
-        cmd = self.ffmCmd.replace("{Codierung}", parm)
-        # dann von und nach ersetzen
-        # KEINE ERSETZUNG NÖTIG, WENN DER STRING IN ANFÜHRUNGSSTRICHEN STEHT!
-        # ts_von = correct_illegal_chars(ts_von)
-        # ts_nach = correct_illegal_chars(ts_nach)
+
+        # codier, weite, hoehe = filmAlyser.get_encoding(ts_von)
+        
+        parm = "HD"     # default
+        try:
+            iWeite  = int(ts_weite)
+        except:
+            iWeite = 768
+
+        if iWeite < 1280:
+            parm = "SD"
+            cmd = self.cmd_SD
+        elif iWeite < 1920:
+            parm = "HD"
+            cmd = self.cmd_HD
+        else:
+            parm = "FullHD"
+            cmd = self.cmd_FullHD
+
+        # wietere Ersetzungen der cmd-Zeile
         cmd = cmd.replace("{EingabeDatei}", ts_von)
         cmd = cmd.replace("{AusgabeDatei}", ts_nach)
-        # print(f"Codier=({codier}), Parm=({parm})")
+        # BitRaten-Rechnerei (nach 2021-07-16 nicht mehr erforderlich)
+        brs = "0"
+        if cmd.find("{BitRate}") > 0:
+        #     bri = int(bitrate)
+        #     bri = int(round(bri / (1024*1024) + 0.5, 0))
+        #     if bri > 10:
+        #         brs = "5M"
+        #     elif bri > 6:
+        #         brs = "3M"
+        #     else:
+        #         brs = "0"
+            cmd = cmd.replace("{BitRate}", brs)      
         return cmd
 
 def correct_illegal_chars(txt:"der zu prüfende String") -> str:
@@ -91,8 +121,9 @@ def correct_illegal_chars(txt:"der zu prüfende String") -> str:
 
 if __name__ == '__main__':
     ff = ffmpegcmd()
-    von  = "C:\\ts\\Blood_&_Treasure_-_Kleopatras_Fluch_(1-1)_Der_Agent_und_die_Meisterdiebin.ts"
-    nach = "E:\\Filme\\schnitt\\Blood_&_Treasure_-_Kleopatras_Fluch_(1-1)_Der_Agent_und_die_Meisterdiebin.mkv"
+    # von  = "C:\\ts\\Deutschland,_24_Stunden.ts.done"
+    von  = "C:\\ts\\1001_Nacht_-_Der_Ruhelose_(1~3).ts"
+    nach = "E:\\Filme\\schnitt\\1001_Nacht_-_Der_Ruhelose_(1~3).mkv"
 
     cmd = ff.ffXcodeCmd(von, nach)
 
