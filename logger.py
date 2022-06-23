@@ -13,6 +13,7 @@
 # Änderungen
 # ab 2016-10-26 objektorientiert
 # 2016-10-27    vereinfachtes Handling; TimeStamp eingeführt
+# 2021-11-23    bessere Ausrichtung bei Mutli-Line Texten & TimeStamp
 # -----------------------------------------------------------------------------------
 from datetime import datetime
 import os
@@ -42,23 +43,36 @@ class logFile:
 
     def logEintrag(self, logText):
         """
-        schreibt den String logText in die Log-Datei und auf den Schirm
+        schreibt den String logText in die Log-Datei und ggf. auf den Schirm
         :rtype: nil
         :param lstr: string
         :return: nil
         """
-        lg = open(self.LogName, encoding="utf-8", mode='a')
+        
+        # lts = logText.split(os.linesep)
         lts = logText.split("\n")
+        dtme = datetime.now().strftime("%d.%m.%Y %H:%M:%S") + " : "
+        dtme_blank = " " * len(dtme)
+        first = True
+        # akku = ""
+        lg = open(self.LogName, encoding="utf-8", mode='a')            
         for st in lts:
             if self.TimeStamp:
-                lt = datetime.now().strftime("%d.%m.%Y %H:%M:%S") + " : " + st
+                if first:
+                    lt = dtme + st
+                    first = False
+                else:
+                    lt = dtme_blank + st
             else:
                 lt = st
-            lg.writelines(lt)
-            lg.write("\n")
+            # akku += lt + "\n"            
+            print(lt, file=lg, end="\n")
+            if self.printout:
+                print(lt)
+            # 
+        # print(akku, file=lg, end="\n")
+        # lg.write(akku + "\n")
         lg.close()
-        if self.printout:
-            print(lt)
 
 # ----Klasse LogFile Ende----------------------------------------------------------------------
 
@@ -78,6 +92,7 @@ if __name__ == "__main__":
     log = openlog(os.path.basename(__file__)+".log", TimeStamp=True)
     log.logEintrag("Erster!")
     log.log("Letzter Log-Eintrag")
+    log.log("Mehrzeiler!\nDas ist die 2. Zeile.\nUnd das ist der Schluss.\n")
     log.log("Bye!")
     log.close()
 

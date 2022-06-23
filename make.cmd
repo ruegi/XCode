@@ -1,7 +1,7 @@
-pyuic5 -x XCodeUI.ui -o XCodeUI.py
+pyuic5 -x XCodeUI2.ui -o XCodeUI2.py
 pyuic5 -x transcodeWinUI.ui -o transcodeWinUI.py
-rem pyinstaller -w -i XC.ico --clean -y XCode.py
-rem copy .\XC.ico .\dist\XCode
-rem copy .\ffcmd.ini .\dist\XCode
+pyinstaller -w -i XC.ico --clean -y XCode2.py
+copy .\XC.ico .\dist\XCode2
+copy .\ffcmd.ini .\dist\XCode2
 echo Fertig!
 

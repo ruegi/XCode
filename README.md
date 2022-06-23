@@ -14,5 +14,13 @@ Das derzeitige Hauptprogramm ist XCode_process_mitliste.py, der in zukünftigen 
 2021-04-11:
 Jetzt ist XCode.py das Hauptprogramm, XCode_process_mitliste.py ist überflüssig.
 
+2021-11-24:
+Neue Version XCode2.py.
+Diese Version ist auf n simultane Transcodierungen eingerichtet. Funktioniert hat das bis n=3.
+Bei n=4 scheitert die 4. Tanscodierung an einem "out of memory" Fehler.
+Ernüchternd: die gleichzeitigen Transcodierungen teilen sich eine Grafikkarte.
+Darum reduziert sich die Geschwindigkeit auf 1/n. Man hat also keinen Geschwindigkeitsvorteil.
+Ich arbeite daher mit n = 1.
+
 ruegi
 

@@ -13,26 +13,27 @@ Versionen:
         frame-Zeile in der Statuszeile
 1.3     Info Typ als neue Spalte in der Tabelle;
         Fortschrittsbalken in der Spalte 'Status' der Tabelle
-
+2.0     Umbau in eine Hauptprogramm, dass das TrasnCodeWin zum transcodieren x-fach parallel ausführt
 """
+# from _typeshed import Self
 from PyQt5.QtWidgets import (QMainWindow,
                              QTextEdit, 
                              QTableWidget,
                              QTableWidgetItem,
                              QHeaderView,
-                             QLabel,
-                             QLineEdit, 
-                             QPushButton,
-                             QWidget,
-                             QHBoxLayout, 
-                             QVBoxLayout, 
+                            #  QLabel,
+                            #  QLineEdit, 
+                            #  QPushButton,
+                            #  QWidget,
+                            #  QHBoxLayout, 
+                            #  QVBoxLayout, 
                              QApplication,
                              QMessageBox,
                              QStyledItemDelegate,
                              QStyleOptionProgressBar,
                              QStyle)
 
-from PyQt5.QtCore import QProcess, QObject, Qt
+from PyQt5.QtCore import QMutex, QObject, Qt, pyqtSignal, QThread
 from PyQt5.QtGui import QTextCursor, QColor, QIcon
 
 from math import log as logarit
@@ -40,9 +41,8 @@ from timeit import default_timer as timer
 import datetime
 import logger
 import sys
-import shutil
+import time
 import os
-import ffcmd
 from random import randint
 
 from pymediainfo import MediaInfo
@@ -51,16 +51,22 @@ import liste.liste as liste  # hält eine Liste der umzuwandelnden Dateien
 
 from pymediainfo import MediaInfo
 
-import XCodeUI # Hauptfenster; mit pyuic aus der UI-Datei konvertiert
+import XCodeUI2 # Hauptfenster; mit pyuic aus der UI-Datei konvertiert
 
 import transcodeWin
+
+tsMutex = QMutex()
+anzMutex = QMutex()
+logMutex = QMutex()
+jobMutex = QMutex()
 
 class Konstanten:                       # Konstanten des Programms
     QUELLE  = "C:\\ts\\"
     ZIEL    = "E:\\Filme\\schnitt\\"
     LOGPATH = "E:\\Filme\\log\\"
-    VERSION = "1.3"
-    VERSION_DAT = "2021-07-24"
+    VERSION = "2.0"
+    VERSION_DAT = "2021-11-23"
+    MAXJOBS = 1     # mehr lohnt nicht!!
 
 class videoFile:
     def __init__(self, fullPathName, name, ext):
@@ -116,18 +122,19 @@ class tsEintrag:
         self.fullpath = fullpath
         self.name = name
         self.status = status
-        self.progress = 0
+        self.progress = 0        
         self.video = videoFile(fullpath, name, ext)
     
     def __str__(self):
         return "{0}: {1} mit Status {2}".format(self.nr, self.fullpath, self.status)
 
     def setStatus(self, status):
-        self.status = status
+        self.status = status    # "OK", "Fehler", "in Arbeit", "-skip-" oder "warten..."
     
-    def toggleX(self):
-        if self.status == "OK":
-            return   # keine Änderung, da bereits fertig
+    def toggleXObj(self):
+        if self.status == "OK" or self.status == "Fehler" or self.status == "in Arbeit":
+            print("keine Änderung")
+            return   # keine Änderung, da bereits abgearbeitet
 
         if self.X == "X":
             self.X = ""
@@ -136,46 +143,24 @@ class tsEintrag:
             self.X = "X"
             self.status = "warten..."
         return
+  
 
 class jobControl():
     '''
-    Diese Klasse beschreibt einen Tanscodier Job.
+    Diese Klasse beschreibt einen Tanscoder Job.
     alle Meldungen werden in einen Klassen-Lokalen Buffer geschrieben und bei JobEnde
     in die Logdatei transferiert    
     '''
-    def __init__(self, nr, appObj, tsObj, ):
-        self.nr = nr
-        self.appObj = appObj
+    def __init__(self, index, tsObj):
+        self.index = index
         self.tsObj = tsObj
-        self.running = False
+        self.thread = None
+        self.window = None
+        self.worker = None
         self.start_time  = 0
         self.end_time = 0
-        self.log_buffer = ""
+        self.logBuffer = ""
 
-    def onReadData(self):
-        txt = self.process.readAllStandardOutput().data().decode('cp850')
-        if txt.startswith("frame="):
-            # self.statusbar.showMessage("> " + txt)  # alt; kein bei mehreren Jobs nicht mehr funktionieren
-            data = txt.split("=")   # frame=344874 fps=136 q=20.0 Lsize= 3003827kB time=01:54:59.46 bitrate=3566.6kbits/s speed=2.72x
-            txtAnzFr = data[1].strip().split(" ")
-            try:
-                anzFrames = int(txtAnzFr[0])
-            except:
-                anzFrames = 0
-            if anzFrames > self.frameCount:
-                anzFrames = self.frameCount
-            # self.probar2.setValue(anzFrames)  # Anzeige der Position # alt; kein bei mehreren Jobs nicht mehr funktionieren
-            # nur noch eigenen PorBar in der Tabelle versorgen
-            pro = int(anzFrames/self.frameCount*100)
-            row = self.tsliste.lastPos
-            itm = self.appObj.tbl_files.item(row, 4)            
-            itm.setData(Qt.UserRole+1000, pro)            
-            self.appObj.tsliste.lastObj.progress = pro
-            # print("txtAnzFr: ", txtAnzFr, " ,Frame:", anzFrames," von ", self.frameCount)
-        else: 
-            pass    # alt; kein bei mehreren Jobs nicht mehr funktionieren           
-            # self.edit.append(txt)
-            # self.edit.moveCursor(QTextCursor.End)        
 
 
 class ProgressDelegate(QStyledItemDelegate):
@@ -193,17 +178,17 @@ class ProgressDelegate(QStyledItemDelegate):
         if progress is None: progress = 0
         opt = QStyleOptionProgressBar()
         opt.rect = option.rect
-        # opt.color = QColor(200, 200, 0)
         opt.textAlignment = Qt.AlignCenter
         opt.minimum = 0
-        opt.maximum = 100        
+        opt.maximum = 100  
         opt.progress = progress
         opt.text = f"{progress}%"
         opt.textVisible = True
         QApplication.style().drawControl(QStyle.CE_ProgressBar, opt, painter)        
 
 
-class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
+class XCodeApp(QMainWindow, XCodeUI2.Ui_MainWindow):
+
     def __init__(self):               
         super(self.__class__, self).__init__()
         
@@ -222,7 +207,6 @@ QProgressBar::chunk {
 }'''        
 
         # Instanz-Variablen
-        self.ff = ffcmd.ffmpegcmd()
         self.frameCount = 0
         self.process = None
         self.processkilled = False
@@ -230,9 +214,8 @@ QProgressBar::chunk {
         self.ziel    = Konstanten.ZIEL
         self.logpath = Konstanten.LOGPATH
         self.tsliste = liste.liste()  # Liste der ts-Objekte
-        self.running = False    # im Prozess aktiv
+        self.running = 0        # ANzahl laufender Transcode-Prozesse
         self.stopNext = False   # HalteSignal
-#        self.Zeile = 0         # aktuelle Zeile (0 - (n-1))
         self.incr = 0.0         # Increment des Procbar1
         self.pbarpos = 0        # Pos des ProcBar1
         self.prstart = 0        # start timer des prozesses
@@ -240,7 +223,10 @@ QProgressBar::chunk {
         self.ts_von = ""        # aktuelle quelle
         self.ts_nach = ""       # aktuelles ziel
         self.lastcmd = ""       # letzter cmd, der im Prozess verarbeitet wurde
-        self.w = None           # externes Transcode Window
+        self.jobList = []       # Liste der laufenden Jobs als JobControl Objekte
+        self.app = QApplication.instance()
+        for i in range(0, Konstanten.MAXJOBS):
+            self.jobList.append(None)
 
         # Icon versorgen
         scriptDir = os.path.dirname(os.path.realpath(__file__))
@@ -251,7 +237,6 @@ QProgressBar::chunk {
         self.tbl_files.setAlternatingRowColors(True)
         delegate = ProgressDelegate(self.tbl_files)
         self.tbl_files.setItemDelegateForColumn(4, delegate)
-        # self.tbl_files.setStyleSheet(pbarsheet)
 
         header = self.tbl_files.horizontalHeader()  
         header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
@@ -264,16 +249,9 @@ QProgressBar::chunk {
 
         self.lbl_version.setText( "XCode Version " + Konstanten.VERSION + " vom " + Konstanten.VERSION_DAT )
         
-        self.edit.setTextColor(QColor("White"))
         cName = "darkCyan"
-        self.edit.setTextBackgroundColor (QColor(cName))
-        self.edit.setStyleSheet(f"background-color: {cName};")
-        # self.edit.width = 400
-        # self.edit.setAcceptRichText(True)
-        self.edit.setWindowTitle("Prozess-Ausgabe")
-        self.edit.setText("")        
         
-        self.led_pfad.setDisabled(True)
+        self.le_pfad.setDisabled(True)
         self.probar1.setValue(0)
         self.probar2.setValue(0)
                 
@@ -286,10 +264,7 @@ QProgressBar::chunk {
         self.dt = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         self.log = logger.logFile(self.logpath + "XCode_"+ self.dt + ".log", TimeStamp=True, printout=False)
 
-
-        self.log.log("Umwandlung mit:")
-        self.log.log(self.ff.ffXcodeCmd("{EingabeDatei}", "{AusgabeDatei}",  "", nurLog=True) + "\n")
-
+        self.setWinPos()
         self.ladeFiles(self.quelle)
 
         if self.tsliste.size == 0:
@@ -300,140 +275,45 @@ QProgressBar::chunk {
             self.incr = 100.0 / self.tsliste.size
         self.statusbar.showMessage("{0} Dateien geladen!".format(self.tsliste.size))
 
-    # Slots
-    def onReadData(self):
-        txt = self.process.readAllStandardOutput().data().decode('cp850')
-        if txt.startswith("frame="):
-            self.statusbar.showMessage("> " + txt)
-            data = txt.split("=")   # frame=344874 fps=136 q=20.0 Lsize= 3003827kB time=01:54:59.46 bitrate=3566.6kbits/s speed=2.72x
-            txtAnzFr = data[1].strip().split(" ")
-            try:
-                anzFrames = int(txtAnzFr[0])
-            except:
-                anzFrames = 0
-            if anzFrames > self.frameCount:
-                anzFrames = self.frameCount
-            self.probar2.setValue(anzFrames)  # Anzeige der Position
+    def setWinPos(self):
+        screen = self.app.primaryScreen()
+        w = screen.availableGeometry().width()
+        h = screen.availableGeometry().height()        
+        x = 10
+        y = 10
+        self.move(x,y)
 
-            pro = int(anzFrames/self.frameCount*100)
-            row = self.tsliste.lastPos
-            itm = self.tbl_files.item(row, 4)            
-            itm.setData(Qt.UserRole+1000, pro)            
-            self.tsliste.lastObj.progress = pro
-            # print("txtAnzFr: ", txtAnzFr, " ,Frame:", anzFrames," von ", self.frameCount)
-        else:            
-            self.edit.append(txt)
-            self.edit.moveCursor(QTextCursor.End)        
- 
+
+    
     def toggleX(self):
         # zunächst die aktuelle Zeile finden        
         idx = self.tbl_files.selectedIndexes()[0]
-        row = idx.row()
-        Datei = self.tsliste.findRow(row)
+        row = idx.row()        
+        Datei = self.tsliste.getRow(row)
         if Datei is None:
             return
         else:
-            Datei.toggleX()
-            self.refreshTable(False)    # kein neuaufbau
+            Datei.toggleXObj()
+            self.refreshTableRow(row)    # kein Neuaufbau
+            self.tbl_files.selectRow(row)
         return         
 
-    def onFinished(self,  exitCode,  exitStatus):
-        self.prend = timer()
-        self.running = False
-        self.w.wobinich.disconnect()
-        # print("Vorbei")
-        m, s = divmod(self.prend - self.prstart, 60)
-        h, m = divmod(m, 60)
-        time_str = "{0:02.0f}:{1:02.0f}:{2:02.0f}".format(h, m, s)     
-        Datei = self.tsliste.lastObj
-        if not Datei.X == "X":
-            self.log.log(f">>> {Datei.nr} - {Datei.name} übersprungen!" )
-            if self.tsliste.findNext() is None:
-                self.ende_verarbeitung()    # fertig
-            else:
-                self.convert()              # nächste Datei
-                return
 
-        # print("Finished; exitCode={0}, exitStatus={1}".format(exitCode, exitStatus))
-        if exitStatus == 0:
-            if exitCode == 0:   # Abschluss-Verarbeitung, wenn alles gut gelaufen ist
-                qlen = os.stat(self.ts_von + ".done").st_size
-                try:
-                    zlen = os.stat(self.ts_nach).st_size
-                except:
-                    zlen = 0    
-                self.log.log("{0} --> {1} ({2:2.2f}%)".format(format_size(qlen), format_size(zlen), zlen / qlen * 100))
-                self.log.log("Dauer: {0}; ReturnCode: {1}".format(time_str, exitCode))
-                self.log.log("OK")
-                # try:
-                #     shutil.move(Datei.fullpath, Datei.fullpath + ".done")
-                # except:
-                #     self.log.log("Warnung: Konnte die QuelleDatei nicht in *.done umbenennen!")
-                
-                Datei.setStatus("OK")
-            else:       # Abschluss-Verarbeitung bei Fehler
-                self.log.log("Fehler! ReturnCode: {0}".format(exitCode))
-                self.log.log("Letzter Befehl:\n{0}".format(self.lastcmd))
-                Datei.setStatus("Fehler ({0})".format(exitCode))
-        else:
-            Datei.setStatus("Fehler {0} / {1}".format(exitCode, exitStatus))
-            if self.processkilled:
-                self.log.log("Harter Abbruch! exitCode={0}, exitStatus={1}".format(exitCode, exitStatus))
-                return  # keine weitere Verarbeitung
-            else:
-                self.log.log("Fehler! exitCode={0}, exitStatus={1}".format(exitCode, exitStatus))
-
-        # Abschluss-Arbeiten des aktuellen Prozesses
-        self.edit.setText(" ")
-        self.refreshTable(False)     
-        self.process = None
-        # self.probar2.setRange(0,1)  # stoppt hin-her
-        self.probar2.setValue(0)  # ende der Anzeige
-            
-        # weitermachen oder aufhören
-        if self.stopNext:   # sofort aufhören
-                self.ende_verarbeitung()
-                return            
-
-        # den Fortschrittsbalken abschließen
-        row = self.tsliste.lastPos
-        itm = self.tbl_files.item(row, 4)         
-        itm.setData(Qt.UserRole+1000, 100)        
-        self.tsliste.lastObj.progress = 100
-
-        # neuen Satz aussuchen
-        if self.tsliste.findNext() is None:
-            self.ende_verarbeitung()    # fertig
-        else:
-            self.convert()              # nächste Datei
-
-    def closeEvent(self, event):
-        if self.running:
-            if self.stopNext:
-                reply = QMessageBox.warning(self, "Achtung!",
-                                             "Laufende Konvertierung abbrechen?\nDas macht die neu erzeugte Ausgabe unbrauchbar!",
-                                             QMessageBox.Yes | QMessageBox.No,
-                                             QMessageBox.No)
-                if reply == QMessageBox.Yes:
-                    # Abbrechen!
-                    self.processkilled = True
-                    self.ende_verarbeitung()
-                    event.accept()
-                else:
-                    self.processkilled = False
-                    event.ignore()  # hier kein weiterer close (wegen self.running)!
-        else:
-            event.accept()  # OK, Schluss jetzt
+    def setRowProgress(self, row, zahl):
+        anzMutex.lock()
+        itm = self.tbl_files.item(row, 4)
+        itm.setData(Qt.UserRole+1000, zahl) 
+        anzMutex.unlock()
 
 
-    def receiver(self, zahl):
+    def receiver(self, index, zahl):
         # empfängt die Fortschrittszahlen des Subwindow
         # und zeigt den Fortschritt im Zeilen-Fortschritts-Balken an
-        row = self.tsliste.lastPos
-        itm = self.tbl_files.item(row, 4)            
-        itm.setData(Qt.UserRole+1000, zahl)
-        self.tsliste.lastObj.progress = zahl
-
+        
+        # print("Receiver: Index: ", index, "Zahle: ", zahl)
+        row = self.jobList[index].tsObj.nr
+        self.setRowProgress(row, zahl)
+        
 
     # Funktionen
     def ladeFiles(self, ts_pfad):     # lädt die ts-Files
@@ -445,7 +325,7 @@ QProgressBar::chunk {
                 if fext in [".ts", ".mpg", ".mp4", ".mkv", ".mv4", ".mpeg", ".avi"]:
                     i += 1
                     fullpath = os.path.join(ts_pfad, entry.name)
-                    tse = tsEintrag(i, fullpath, entry.name, fext, "warten...  ")
+                    tse = tsEintrag(i-1, fullpath, entry.name, fext, "warten...")
                     self.tsliste.append(tse)
                     self.log.log("Lade: {0:2}: {1}".format(i, entry.name))
         self.tsliste.findFirst()
@@ -459,7 +339,7 @@ QProgressBar::chunk {
         for ts in self.tsliste.liste:
             # print(ts)
             # direkte Benutzung der tsliste, ohne die Werte von lastPos und lastObj zu verändern
-            nr = ts.nr - 1
+            nr = ts.nr
             if neuaufbau:
                 self.tbl_files.insertRow(nr)
                 self.tbl_files.setItem(nr, 0, QTableWidgetItem(str(ts.nr)))
@@ -491,82 +371,152 @@ QProgressBar::chunk {
                     itm.setTextAlignment(Qt.AlignCenter)
                     break
 
-
-            # if ts.status == "OK":
-            #     itm.text = "OK"
-            # elif ts.status == "Waiting":
-            #     itm.text = "Wait"
-            # else:
-            #     itm.text = "{}%".format(ts.progress)
-
         self.tbl_files.selectRow(self.tsliste.lastPos)
+
+    def refreshTableRow(self, row):
+        # aktualisiert nur eine einzelne Zeile
+        # in den Spalten 1, 4, 5
+        # muss dafür das passende tsObj finden
+        tsObj = self.tsliste.liste[row]
+        self.tbl_files.setItem(row, 1, QTableWidgetItem(tsObj.X))
+        itm = self.tbl_files.item(row, 1)
+        itm.setTextAlignment(Qt.AlignCenter)
+        itm = self.tbl_files.item(row, 4)
+        itm.setData(Qt.UserRole+1000, tsObj.progress)                     
+        self.tbl_files.setItem(row, 5, QTableWidgetItem(tsObj.status))
+        itm = self.tbl_files.item(row, 5)
+        itm.setTextAlignment(Qt.AlignCenter)
+
+
+    def run_a_single_job(self, index)->jobControl:
+        '''
+        startet eine einzelnen Job;
+        gibt bei Fehler oder wenn nichts mehr zu tun ist 'None' zurück
+        '''
+        if self.stopNext:   # Abbruch angefordert, kein neuer Start
+            # print("nix wg stopNext")
+            return None
+        
+        tsObj = self.findeArbeit()
+        if tsObj is None:       # nichts (mehr) zu tun
+            # print("nix wg None")
+            return None
+        self.statusbar.showMessage("transcoding . . .")
+        myJob = jobControl(index, tsObj)
+        myJob.start_time = timer()
+        myJob.window = transcodeWin.mainApp(myJob.tsObj.fullpath, myJob.index) 
+        myJob.window.wobinich.connect(lambda zahl: self.receiver(myJob.index, zahl))
+        myJob.window.JobEnde.connect(self.endWinProc)
+        myJob.start_time = timer()
+        myJob.window.show()
+
+        self.pbarpos += self.incr
+        self.probar1.setValue(round(self.pbarpos))
+        self.refreshTableRow(tsObj.nr)
+        self.logJob(f"Start Konvertierung in {myJob.index} von {myJob.tsObj.fullpath}")
+        return myJob
+
+
+    def findeArbeit(self) -> tsEintrag:
+        ''' Sucht in der tsListe nach einem noch freien Eintrag und gibt ihn als tsObj zurück.
+            Wird nichts gefunden, wird None zurückgegeben
+            Besonderheit hier: es ist für konkurrenten Zugriff abgesichert.
+        '''
+        Obj = None
+        tsMutex.lock()
+        for tsObj in self.tsliste.liste:            
+            if tsObj.X == "X" and tsObj.status == "warten...":
+                # print("Gefunden: ", tsObj)
+                tsObj.status = "in Arbeit..."
+                Obj = tsObj
+                self.refreshTableRow(tsObj.nr)
+                break 
+        tsMutex.unlock()        
+        return Obj
+
+    def endWinProc(self, index, exitCode, exitStatus):
+        # print("In XCode:endWinProc")
+        myJob = self.jobList[index]
+        myJob.end_time = timer()
+        myJob.is_running = False
+        # print("In XCode2.py endWinProc")
+        myJob.logBuffer += f"\nExistStatus: ExitCode={exitCode}, ExitStatus={exitStatus}"
+        m, s = divmod(myJob.end_time - myJob.start_time, 60)
+        h, m = divmod(m, 60)
+        time_str = "{0:02.0f}:{1:02.0f}:{2:02.0f}".format(h, m, s)        
+        myJob.logBuffer += f"\nDauer: {time_str}"
+        # print('Stopping thread...',self.index)        
+        myJob.window.close()
+        myJob.window = None
+        if exitCode > 0:
+            self.processkilled = True
+        self.jobEnde(myJob, exitCode)
+
 
     def convert(self):
         '''
         konvertiert eine ts-Datei über einen separaten Prozess
         '''
-        row = self.tsliste.lastPos
-        Datei = self.tsliste.lastObj
-        # keine Verarbeitung, falls kein X gesetzt wurde
-        if not Datei.X == "X":
-            Datei.setStatus("skipped")
-            self.onFinished(0, 0)
-            return
-
-        # GUI anpassen
-        self.pbarpos += self.incr
-        self.probar1.setValue(round(self.pbarpos))
         self.btn_start.setEnabled(False)
-            
-        Datei.setStatus("läuft...")
-        self.refreshTable(False)
-        self.tbl_files.selectRow(row)
-        fname, _ = os.path.splitext(Datei.name)
-        self.ts_nach = self.ziel + fname + ".mkv"
-        self.ts_von = Datei.fullpath
-        self.log.log("\nStart Konvertierung von {0} . . .".format(self.ts_von))
-        self.statusbar.showMessage("Umwandlung {0} -> {1}".format(self.ts_von, self.ts_nach))
+        for index in range(0, Konstanten.MAXJOBS):
+            myJob = self.run_a_single_job(index)
+            self.jobList[index] = myJob
+            if myJob is None:       # vorzeitiges Ende
+                break
+     
 
-        # # -----------------------------------------------------------------------------
-        # # cmd montieren        
-        # self.lastcmd = self.ff.ffXcodeCmd(self.ts_von, self.ts_nach, Datei.video.weite)
-        # # self.frameCount = berechneFrameCount(self.ts_von)
-        # self.frameCount = Datei.video.frameCount
-        # # print("FrameCount:", self.frameCount)     
-        # self.log.log("ffmpeg Aufruf: {0}".format(self.lastcmd))
-        # # self.log.log("   FrameCount: {0}".format(self.frameCount))
-        # self.statusbar.showMessage("Umwandlung {0} -> {1}".format(self.ts_von, self.ts_nach))   
+    def logJob(self, logTxt: str):
+        logMutex.lock()
+        self.log.log(logTxt)
+        logMutex.unlock()
 
-        # if self.frameCount == 0:
-        #     self.probar2.setTextVisible(False)
-        #     self.probar2.setRange(0,0)  # start hin-her
-        #     self.probar2.setValue(0)
-        # else:
-        #     self.probar2.setTextVisible(True)
-        #     self.probar2.setRange(0, self.frameCount)
-        #     self.probar2.setFormat("%v")
-        #     self.probar2.setValue(0)
 
-        # self.prstart = timer()
+    def jobEnde(self, job: jobControl, exitCode: int):
+        # das Ergebnis des Jobs wegschreiben und ggf. neuen Job aufmachen
+        index = job.index
+        l = "Ende Job [" + job.tsObj.fullpath + "]\n"        
+        if exitCode > 0:
+            pro = 0
+            job.tsObj.status = "Fehler"
+        else:
+            pro = 100
+            job.tsObj.status = "OK"        
+        job.tsObj.progress = pro
+        if self.running > 0:
+            self.running -= 1
 
-        # # Prozess starten
-        # self.running = True
-        # self.process=QProcess()
-        # self.process.finished.connect(self.onFinished)
-        # self.process.setProcessChannelMode(QProcess.MergedChannels)
-        # self.process.readyReadStandardOutput.connect(self.onReadData)        
-        # self.process.start(self.lastcmd)
-        # # -----------------------------------------------------------------------------
-        self.prstart = timer()
-        self.w = transcodeWin.mainApp()
-        self.w.wobinich.connect(self.receiver)
-        self.w.endeVerarbeitung.connect(self.onFinished)
-        self.w.setStartParms(self.ts_von, win=randint(0,3) )
-        # self.w.show()
+        # self.setRowProgress(job.tsObj.nr, pro)
+        self.refreshTableRow( job.tsObj.nr)
+        self.logJob(l + job.logBuffer)
+        
+        time.sleep(0.1)    # sleep 100 ms for housekeeping
+
+        if self.processkilled or exitCode > 0:
+            return
+        
+        job = self.run_a_single_job(index)
+        self.jobList[index] = job       # egal, ob None oder echter Job
+        if job is None:
+            if self.running == 0:
+                self.statusbar.showMessage("Ende der Verarbeitung!")
+                self.ende_verarbeitung()
+            return
+        else:
+            # das running Flag korrekt setzen
+            jobMutex.lock() 
+            self.running += 1
+            # self.running = False
+            # for i in range(0, Konstanten.MAXJOBS):
+            #     if not self.jobList[i] is None:
+            #         self.running = True
+            #         break
+            jobMutex.unlock()
+        return
 
 
     def progende(self):     # Ende Proc mit Nachfrage
-        if self.running:
+        # print("self.running = ", self.running)
+        if self.running > 0:
             reply = QMessageBox.question( self, "Nachfrage",
             "Ablauf abbrechen?\nDas wird nach dem Ende der aktuellen Konvertierung geschehen!",
             QMessageBox.Yes | QMessageBox.No,
@@ -574,36 +524,22 @@ QProgressBar::chunk {
 
             if reply == QMessageBox.Yes:
                 self.stopNext = True
-                self.statusbar.showMessage("Die Konverierung endet nach dem aktuellen Prozess!")
+                self.statusbar.showMessage("Die Konverierung endet nach den aktuellen Prozessen!")
                 self.btn_ende.setText("Abbruch angefordert!")
                 self.btn_ende.setDisabled(True)
+            else:
+                return
         else:
             self.ende_verarbeitung()
         
     def ende_verarbeitung(self):
         self.tbl_files.selectRow(-1)
-        self.log.log("-" * 80)
-        self.running = False
+        self.log.log("-" * 80)        
         self.statusbar.showMessage("Verarbeitung beendet!")
         if self.btn_start.isEnabled():
             self.log.log("Nichts getan!")
         else:
-            if self.processkilled:
-                self.process.kill()
-                self.process.waitForFinished(5000)
-                if os.path.isfile(self.ts_nach):    #die defekte Datei löschen
-                    try:  # versuchen, die kaputte *.mkv"-datei zu löschen
-                        os.remove(self.ts_nach)
-                    except:
-                        QMessageBox.information(self, "Achtung!",
-                                                "Die defekte Datei \n{0}\nkonnte NICHT gelöscht werden!".format(
-                                                    self.ts_nach))
-                        self.log.log("Defekte Zieldatei [{0}] konnte NICHT gelöscht werden!")
-                    else:
-                        self.log.log("Defekte Zieldatei wurde gelöscht!")
-                self.log.log("Harter Abbruch!")
-                txt = "Harter Abbruch!"
-            elif self.stopNext:
+            if self.stopNext:
                 txt = "Die Verarbeitung wurde nach Anforderung vorzeitig beendet!"
                 self.log.log("Ende nach Abbruch!" )
             else:
@@ -630,7 +566,7 @@ QProgressBar::chunk {
         for ts in self.tsliste.liste:
             if ts.status == "OK":
                 ok += 1
-            elif ts.status == "warten...  ":                
+            elif ts.status == "warten...":                
                 wait += 1
             elif ts.status == "skipped":
                 skipped += 1
@@ -643,25 +579,6 @@ QProgressBar::chunk {
             txt = f"\nErgebnis!\n\nOK: {ok}\n" + f"Fehler: {err}\n".format(err) + f"Nicht bearbeitet: {wait + skipped}\n"
             isOK = False
         return (txt, isOK)
-
-
-# def ffmpegBefehl(ts_von, ts_nach):
-#         # das "&" stört im Aufruf, es muss maskiert werden
-#         von = ts_von.replace("&", "^&")
-#         nach = ts_nach.replace("&", "^&")
-#         cmd = "c:\\ffmpeg\\bin\\ffmpeg -i "
-#         cmd = cmd + "\"{0}\" ".format(ts_von)
-#         #cmd = cmd + ' -map 0:v -map 0:a:0 -c:v h264_nvenc -b:v 1200K -maxrate 1400K -bufsize:v 4000k -bf 2 -g 150 -i_qfactor 1.1 -b_qfactor 1.25 -qmin 1 -qmax 50 -f matroska '
-#         # cmd = cmd + '-c:v h264_nvenc -c:a copy -c:s copy -b:v 1200K -maxrate 1400K -bufsize:v 4000k -bf 2 -g 150 -i_qfactor 1.1 -b_qfactor 1.25 -qmin 1 -qmax 50 -f matroska -y '
-#         # die folgenden Parameter haben die Eigenschaften (2018-12-13):
-#         #  - gute Videoqualität per nvenc;
-#         #  - alle Audios werden kopiert
-#         #  - Deutscher Untertitel wirde als dvdsub einkopiert
-#         #cmd = cmd + '-map 0 -c:v h264_nvenc -c:a copy -c:s dvdsub  -profile:v main -preset fast -f matroska -y '
-#         cmd = cmd + '-map 0 -c:v hevc_nvenc -c:a copy -c:s dvdsub  -profile:v main -preset fast -f matroska -y '
-        
-#         cmd = cmd + "\"{0}\"".format(ts_nach)
-#         return cmd
 
 
 def format_size(flen: int):
