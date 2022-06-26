@@ -10,3 +10,4 @@ tst_*.py
 ffcmd.ini.10Bit
 ffcmd.ini.bis20210704
 start4.cmd
+.vscode/launch.json

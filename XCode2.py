@@ -64,8 +64,8 @@ class Konstanten:                       # Konstanten des Programms
     QUELLE  = "C:\\ts\\"
     ZIEL    = "E:\\Filme\\schnitt\\"
     LOGPATH = "E:\\Filme\\log\\"
-    VERSION = "2.0"
-    VERSION_DAT = "2021-11-23"
+    VERSION = "2.1"
+    VERSION_DAT = "2022-06-24"
     MAXJOBS = 1     # mehr lohnt nicht!!
 
 class videoFile:

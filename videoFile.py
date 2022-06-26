@@ -52,3 +52,12 @@ class videoFile:
                 return 
         except:            
             return
+
+if __name__ == '__main__': 
+    vidf = "c:\\ts\\Abenteuer_Erde_-_Korsika_-_Wildnis_zwischen_Bergen_und_Meer.ts"
+    vid = videoFile(vidf)
+    print("Video: ", vidf)
+    print("Video-Abmessungen: ", vid.weite, "x", vid.hoehe)
+    print("Video-Anz.Frames: ", vid.frameCount)
+    print("Video-fps: ", vid.fps)
+

@@ -4,14 +4,20 @@
     // Weitere Informationen finden Sie unter https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-        
+        {
+            "name": "Python: transcodeWin",
+            "type": "python",
+            "request": "launch",
+            "program": "transcodeWin.py",
+            "console": "integratedTerminal",
+            "args": ["c:\\ts\\scobel_-_Magie_des_Atmens.ts"]
+        },       
         {
             "name": "Python: Aktuelle Datei",
             "type": "python",
             "request": "launch",
             "program": "${file}",
-            "console": "integratedTerminal"
-            "args": ["c:\\ts\\Stealth_-_Unter_dem_Radar.ts"]
+            "console": "integratedTerminal"            
         }
     ]
 }

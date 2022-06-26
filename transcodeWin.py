@@ -195,16 +195,18 @@ class mainApp(QMainWindow, transcodeWinUI.Ui_MainWindow):
         if txt.startswith("frame="):
             self.le_frames.setText("> " + txt)
             data = txt.split("=")   # frame=344874 fps=136 q=20.0 Lsize= 3003827kB time=01:54:59.46 bitrate=3566.6kbits/s speed=2.72x
-            txtAnzFr = data[1].strip().split(" ")
+            txtAnzFr = data[1].strip().split(" ")            
             try:
                 anzFrames = int(txtAnzFr[0])
             except:
                 anzFrames = 0
-            if anzFrames > self.video.frameCount:
-                anzFrames = self.video.frameCount
-            pro = int(anzFrames/self.video.frameCount*100)
-            self.progressBar.setValue(pro)  # Anzeige der Position
-            self.wobinich.emit(pro)
+            pro = 0
+            if self.video.frameCount > 0:
+                if anzFrames > self.video.frameCount:
+                    anzFrames = self.video.frameCount
+                pro = int(anzFrames/self.video.frameCount*100)
+                self.progressBar.setValue(pro)  # Anzeige der Position
+                self.wobinich.emit(pro)
             # print("txtAnzFr: ", txtAnzFr, " ,Frame:", anzFrames," von ", self.video.frameCount, "Prozent:", pro)
         else:            
             self.te_ffmpeg.appendPlainText(txt)
@@ -230,7 +232,7 @@ class mainApp(QMainWindow, transcodeWinUI.Ui_MainWindow):
     def onFinished(self, exitCode, exitStatus):
         # print("IN TranscodeWin:onFinished")
         self.prend = timer()
-        self.running = False
+        self.running = False        
         m, s = divmod(self.prend - self.prstart, 60)
         h, m = divmod(m, 60)
         time_str = "{0:02.0f}:{1:02.0f}:{2:02.0f}".format(h, m, s)        
@@ -323,8 +325,20 @@ class mainApp(QMainWindow, transcodeWinUI.Ui_MainWindow):
             if not self.log is None: self.log.log("Nichts getan!")
         else:
             if self.processkilled:                
-                self.process.kill()
-                self.process.waitForFinished(5000)
+                # self.process.kill()
+                self.process.terminate()
+                t = 0
+                while self.running:
+                    t += 1
+                    self.Hinweis(f"{t}: Warte auf das Ende von ffmpeg...")
+                    QApplication.processEvents()
+                    self.process.waitForFinished(1000)
+                    if t > 5:
+                        self.process.kill()
+                    elif t > 10:
+                        break
+                    else:
+                        pass
 
                 if os.path.isfile(self.ts_nach):    #die defekte Datei löschen
                     try:  # versuchen, die kaputte *.mkv"-datei zu löschen
