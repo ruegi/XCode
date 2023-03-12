@@ -4,7 +4,7 @@ Created on Wed May 16
 
 @author: rg
 
-XCode.py mit pyqt5
+XCode2.py mit pyqt6
 Variante mit start eines separaten Porcesses für den TransCode
 angeregt durch start_process.py und ProcessTest.py
 
@@ -14,27 +14,32 @@ Versionen:
 1.3     Info Typ als neue Spalte in der Tabelle;
         Fortschrittsbalken in der Spalte 'Status' der Tabelle
 2.0     Umbau in eine Hauptprogramm, dass das TrasnCodeWin zum transcodieren x-fach parallel ausführt
+2.1     Umstellung auf PyQt6; Einbau des Parameters {canvassize} in ffcmd.ini,
+        um den dvdsub-Fehler 'canvas_size(0:0) is too small for render' zu beheben
+2.2     neue Farbgebung; Einbau des Parameters {Untertitel} in ffcmd.ini, Fehlerbereinigung
 """
 # from _typeshed import Self
-from PyQt5.QtWidgets import (QMainWindow,
+from PyQt6.QtWidgets import (QMainWindow,
                              QTextEdit, 
                              QTableWidget,
+                             QWidget,
                              QTableWidgetItem,
                              QHeaderView,
+                             QLineEdit, 
                             #  QLabel,
-                            #  QLineEdit, 
-                            #  QPushButton,
+                            #  
+                             QPushButton,
                             #  QWidget,
                             #  QHBoxLayout, 
-                            #  QVBoxLayout, 
+                             QVBoxLayout, 
                              QApplication,
                              QMessageBox,
                              QStyledItemDelegate,
                              QStyleOptionProgressBar,
                              QStyle)
 
-from PyQt5.QtCore import QMutex, QObject, Qt, pyqtSignal, QThread
-from PyQt5.QtGui import QTextCursor, QColor, QIcon
+from PyQt6.QtCore import QMutex, QObject, Qt, pyqtSignal, QThread
+from PyQt6.QtGui import QTextCursor, QColor, QIcon, QFont, QBrush
 
 from math import log as logarit
 from timeit import default_timer as timer
@@ -64,9 +69,14 @@ class Konstanten:                       # Konstanten des Programms
     QUELLE  = "C:\\ts\\"
     ZIEL    = "E:\\Filme\\schnitt\\"
     LOGPATH = "E:\\Filme\\log\\"
-    VERSION = "2.1"
-    VERSION_DAT = "2022-06-24"
+    VERSION = "2.2"
+    VERSION_DAT = "2023-03-11"
     MAXJOBS = 1     # mehr lohnt nicht!!
+    normalFG = QBrush(QColor.fromString("Gray"))
+    normalBG = QBrush(QColor.fromString("White"))
+    highFG = QBrush(QColor.fromString("White"))
+    highBG = QBrush(QColor.fromString("Chocolate"))
+
 
 class videoFile:
     def __init__(self, fullPathName, name, ext):
@@ -78,7 +88,7 @@ class videoFile:
         self.fps = 0.0
         self.bitRate = 0
         self.weite = "1280"
-        self.hoehe = "768"
+        self.hoehe = "720"
         self.typ = "HD"
         self.getVideoDetails()
 
@@ -162,29 +172,73 @@ class jobControl():
         self.logBuffer = ""
 
 
+class ladeFenster(QWidget):
+    '''
+    ein Fenster, das den Ladevorgang zeigt
+    '''
+    def __init__(self, callerWin):
+        super().__init__()        
+        self.callerWin = callerWin
+        self.resize(800, 80)
+        self.setStyleSheet("ladeFenster {background-color: #fff5cc;}")
+        self.setWindowTitle("XCode2: Filme laden . . .")
+        self.setWindowIcon(QIcon("XC.ico"))
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+        self.zeile = QLineEdit("XCode2: Filme laden . . .")
+        self.zeile.setReadOnly(True)
+        self.zeile.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        self.zeile.setFont(QFont('Arial', 12))
+        layout.addWidget(self.zeile)
+        self.btn_abbruch  = QPushButton("Abbruch", self)
+        self.btn_abbruch.clicked.connect(self.abbruchApp)
+        layout.addWidget(self.btn_abbruch)
+
+    def abbruchApp(self):
+        self.callerWin.processkilled = True
+
+    def setZeile(self, txt):
+        self.zeile.setText(txt)
+        QApplication.processEvents()
+
 
 class ProgressDelegate(QStyledItemDelegate):
     '''
     Mit der paint-Methode des Delegates können die Progress-Bars in der letzten Spalte konfiguriert werden
     Dabei taucht ein Problem auf:
-    dieses Objekt hat keine Verbindung zu den anderen Objeten zu Laufzeit.
+    dieses Objekt hat keine Verbindung zu den anderen Objekten zur Laufzeit.
     Um den den aktuellen Fortschritt zu erhalten, muss dieser in diesem Zell-Item als User-Data hinterlegt werden.
-    Das geschieht mit "index.data(Qt.UserRole+1000)" (beim lesen) und "setData(index.data(Qt.UserRole+1000), prozent)" beim schreiben.
+    Das geschieht mit "index.data(Qt.ItemDataRole.UserRole+1000)" (beim lesen) und 
+    "setData(index.data(Qt.ItemDataRole.UserRole+1000), prozent)" beim schreiben.
     Noch kenne ich keinen Weg, die häßliche grüne Farbe des Chunk zu ändern ...
     rg, 2021-07-25
     '''
     def paint(self, painter, option, index):
-        progress = index.data(Qt.UserRole+1000)
+        smallBarStyle = """
+        QProgressBar{
+    border: 2px solid grey;
+    border-radius: 5px;
+    text-align: center
+}
+
+QProgressBar::chunk {
+    background-color: Chocolate;
+}
+        """
+        progress = index.data(Qt.ItemDataRole.UserRole+1000)
         if progress is None: progress = 0
         opt = QStyleOptionProgressBar()
-        opt.rect = option.rect
-        opt.textAlignment = Qt.AlignCenter
+        opt.rect = option.rect        
+        opt.textAlignment = Qt.AlignmentFlag.AlignCenter
         opt.minimum = 0
         opt.maximum = 100  
+        opt.setStyleSheet(smallBarStyle)
         opt.progress = progress
         opt.text = f"{progress}%"
         opt.textVisible = True
-        QApplication.style().drawControl(QStyle.CE_ProgressBar, opt, painter)        
+        opt.state |= QStyle.StateFlag.State_Horizontal
+        QApplication.style().drawControl(QStyle.ControlElement.CE_ProgressBar, opt, painter)
+        #    QStyle.CE_ProgressBar, opt, painter)        
 
 
 class XCodeApp(QMainWindow, XCodeUI2.Ui_MainWindow):
@@ -195,16 +249,16 @@ class XCodeApp(QMainWindow, XCodeUI2.Ui_MainWindow):
         self.setupUi(self)  # This is defined in XCodeUI.py file automatically
                             # It sets up layout and widgets that are defined
 
-        pbarsheet = '''
-QProgressBar {
-    border: 2px solid #2196F3;
-    border-radius: 5px;
-    background-color: #E0E0E0;
-    text-align: center
-}
-QProgressBar::chunk {
-    background-color: #2196F3;
-}'''        
+#         pbarsheet = '''
+# QProgressBar {
+#     border: 2px solid #2196F3;
+#     border-radius: 5px;
+#     background-color: #E0E0E0;
+#     text-align: center
+# }
+# QProgressBar::chunk {
+#     background-color: #2196F3;
+# }'''        
 
         # Instanz-Variablen
         self.frameCount = 0
@@ -235,15 +289,15 @@ QProgressBar::chunk {
         # Feintuning der Widgets
         self.tbl_files.setHorizontalHeaderLabels(("Nr", 'X', 'Datei', 'Typ', 'Progress', 'Status'))
         self.tbl_files.setAlternatingRowColors(True)
-        delegate = ProgressDelegate(self.tbl_files)
-        self.tbl_files.setItemDelegateForColumn(4, delegate)
+        # delegate = ProgressDelegate(self.tbl_files)
+        # self.tbl_files.setItemDelegateForColumn(4, delegate)
 
         header = self.tbl_files.horizontalHeader()  
-        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(2, QHeaderView.Stretch)
-        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        # header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         # header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
         self.tbl_files.setAlternatingRowColors(True)
 
@@ -264,12 +318,12 @@ QProgressBar::chunk {
         self.dt = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         self.log = logger.logFile(self.logpath + "XCode_"+ self.dt + ".log", TimeStamp=True, printout=False)
 
-        self.setWinPos()
+        self.setWinPos()        
         self.ladeFiles(self.quelle)
 
         if self.tsliste.size == 0:
             reply = QMessageBox.information( self, "Hinweis",
-            "Es gibt im Order {0} keine ts-Dateien.\nNichts zu tun!".format(self.quelle))
+            f"Es gibt im Ordner {self.quelle} keine ts-Dateien.\nNichts zu tun!")
             return
         else:
             self.incr = 100.0 / self.tsliste.size
@@ -282,7 +336,6 @@ QProgressBar::chunk {
         x = 10
         y = 10
         self.move(x,y)
-
 
     
     def toggleX(self):
@@ -300,9 +353,12 @@ QProgressBar::chunk {
 
 
     def setRowProgress(self, row, zahl):
-        anzMutex.lock()
+        zahl = 100 if zahl > 100 else zahl
+        anzMutex.lock()        
         itm = self.tbl_files.item(row, 4)
-        itm.setData(Qt.UserRole+1000, zahl) 
+        itm.setText(str(zahl) + " %")
+        self.probar2.setValue(zahl)
+        # itm.setData(Qt.ItemDataRole.UserRole+1000, zahl) 
         anzMutex.unlock()
 
 
@@ -310,27 +366,45 @@ QProgressBar::chunk {
         # empfängt die Fortschrittszahlen des Subwindow
         # und zeigt den Fortschritt im Zeilen-Fortschritts-Balken an
         
-        # print("Receiver: Index: ", index, "Zahle: ", zahl)
+        # print("Receiver: Index: ", index, "Zahl: ", zahl)
         row = self.jobList[index].tsObj.nr
+        self.jobList[index].tsObj.progress = zahl
         self.setRowProgress(row, zahl)
         
 
     # Funktionen
     def ladeFiles(self, ts_pfad):     # lädt die ts-Files
+        # stopReq = False
+        # def stopAnforderung():
+        #     global stopReq
+        #     stopReq = True
+
+        ladeWin = ladeFenster(self)
+        ladeWin.show()
         # Liste der ts-files laden
         i = 0
         for entry in os.scandir(ts_pfad):
+            if self.processkilled:
+                break
             if entry.is_file():
                 fname, fext = os.path.splitext(entry.name)
                 if fext in [".ts", ".mpg", ".mp4", ".mkv", ".mv4", ".mpeg", ".avi"]:
                     i += 1
                     fullpath = os.path.join(ts_pfad, entry.name)
+                    ladeWin.setZeile(f"({i}) - {fullpath}")
                     tse = tsEintrag(i-1, fullpath, entry.name, fext, "warten...")
                     self.tsliste.append(tse)
                     self.log.log("Lade: {0:2}: {1}".format(i, entry.name))
         self.tsliste.findFirst()
-        self.refreshTable(True)
+        ladeWin.close()
+        
+        if self.processkilled:            
+            self.close()
+            self.app.quit()
+
+        self.refreshTable(True)        
         return self.tsliste.size
+
 
     def refreshTable(self, neuaufbau):
         # das Table-widget füllen
@@ -345,30 +419,22 @@ QProgressBar::chunk {
                 self.tbl_files.setItem(nr, 0, QTableWidgetItem(str(ts.nr)))
                 self.tbl_files.setItem(nr, 1, QTableWidgetItem(ts.X))
                 self.tbl_files.setItem(nr, 2, QTableWidgetItem(ts.name))
-                self.tbl_files.setItem(nr, 3, QTableWidgetItem(ts.video.typ))            
-                self.tbl_files.setItem(nr, 4, QTableWidgetItem(ts.progress))
-                itm = self.tbl_files.item(nr, 4)
-                itm.setData(Qt.UserRole+1000, 0) 
-                self.tbl_files.setItem(nr, 5, QTableWidgetItem(ts.status))
+                self.tbl_files.setItem(nr, 3, QTableWidgetItem(ts.video.typ))
+                self.tbl_files.setItem(nr, 4, QTableWidgetItem(" "))
+
                 # zentrieren
+                self.refreshTableRow(nr)
                 itm = self.tbl_files.item(nr, 0)
-                itm.setTextAlignment(Qt.AlignCenter)
-                itm = self.tbl_files.item(nr, 1)
-                itm.setTextAlignment(Qt.AlignCenter)
+                itm.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                # itm = self.tbl_files.item(nr, 1)
+                # itm.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 itm = self.tbl_files.item(nr, 3)
-                itm.setTextAlignment(Qt.AlignCenter)
-                itm = self.tbl_files.item(nr, 5)
-                itm.setTextAlignment(Qt.AlignCenter)
+                itm.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                # itm = self.tbl_files.item(nr, 5)
+                # itm.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             else:
                 if nr == self.tsliste.lastPos:
-                    self.tbl_files.setItem(nr, 1, QTableWidgetItem(ts.X))
-                    itm = self.tbl_files.item(nr, 1)
-                    itm.setTextAlignment(Qt.AlignCenter)
-                    itm = self.tbl_files.item(nr, 4)
-                    itm.setData(Qt.UserRole+1000, ts.progress)                     
-                    self.tbl_files.setItem(nr, 5, QTableWidgetItem(ts.status))
-                    itm = self.tbl_files.item(nr, 5)
-                    itm.setTextAlignment(Qt.AlignCenter)
+                    self.refreshTableRow(nr)
                     break
 
         self.tbl_files.selectRow(self.tsliste.lastPos)
@@ -380,12 +446,22 @@ QProgressBar::chunk {
         tsObj = self.tsliste.liste[row]
         self.tbl_files.setItem(row, 1, QTableWidgetItem(tsObj.X))
         itm = self.tbl_files.item(row, 1)
-        itm.setTextAlignment(Qt.AlignCenter)
+        itm.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         itm = self.tbl_files.item(row, 4)
-        itm.setData(Qt.UserRole+1000, tsObj.progress)                     
+        itm.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        if tsObj.status == "in Arbeit...":
+            itm.setText(str(tsObj.progress) + " %")
+            itm.setBackground(Konstanten.highBG)
+            itm.setForeground(Konstanten.highFG)            
+        else:
+            itm.setText("--->")
+            itm.setBackground(Konstanten.normalBG)
+            itm.setForeground(Konstanten.normalFG)
+        
         self.tbl_files.setItem(row, 5, QTableWidgetItem(tsObj.status))
         itm = self.tbl_files.item(row, 5)
-        itm.setTextAlignment(Qt.AlignCenter)
+        itm.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.tbl_files.selectRow(row)
 
 
     def run_a_single_job(self, index)->jobControl:
@@ -397,11 +473,15 @@ QProgressBar::chunk {
             # print("nix wg stopNext")
             return None
         
-        tsObj = self.findeArbeit()
+        tsObj = self.findeArbeit()      # setze status auf "in Arbeit"
         if tsObj is None:       # nichts (mehr) zu tun
             # print("nix wg None")
             return None
-        self.statusbar.showMessage("transcoding . . .")
+        self.statusbar.showMessage("transcoding . . . " + tsObj.name)
+        self.probar2.setRange(0,100)     
+        self.probar2.setFormat("%p %")
+        self.probar2.setTextVisible(True)
+        self.probar2.setValue(0)
         myJob = jobControl(index, tsObj)
         myJob.start_time = timer()
         myJob.window = transcodeWin.mainApp(myJob.tsObj.fullpath, myJob.index) 
@@ -409,7 +489,14 @@ QProgressBar::chunk {
         myJob.window.JobEnde.connect(self.endWinProc)
         myJob.start_time = timer()
         myJob.window.show()
+        self.setFocus()
+        self.tbl_files.setFocus()
 
+        # Farbgebung für den Fortschrittsbalken der aktiven Zeile
+        itm = self.tbl_files.item(tsObj.nr, 4)
+        itm.setBackground(Konstanten.highFG)
+        itm.setForeground(Konstanten.highBG)
+        itm.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         self.pbarpos += self.incr
         self.probar1.setValue(round(self.pbarpos))
         self.refreshTableRow(tsObj.nr)
@@ -434,13 +521,15 @@ QProgressBar::chunk {
         tsMutex.unlock()        
         return Obj
 
+
     def endWinProc(self, index, exitCode, exitStatus):
         # print("In XCode:endWinProc")
         myJob = self.jobList[index]
         myJob.end_time = timer()
         myJob.is_running = False
         # print("In XCode2.py endWinProc")
-        myJob.logBuffer += f"\nExistStatus: ExitCode={exitCode}, ExitStatus={exitStatus}"
+        myJob.logBuffer += f"\nExitCodes: ExitCode={exitCode}, ExitStatus={exitStatus}"
+        # print(f"ExitCodes: ExitCode={exitCode}, ExitStatus={exitStatus}")
         m, s = divmod(myJob.end_time - myJob.start_time, 60)
         h, m = divmod(m, 60)
         time_str = "{0:02.0f}:{1:02.0f}:{2:02.0f}".format(h, m, s)        
@@ -481,11 +570,18 @@ QProgressBar::chunk {
         else:
             pro = 100
             job.tsObj.status = "OK"        
-        job.tsObj.progress = pro
+        job.tsObj.progress = pro        
+        self.probar2.setValue(0)
+        # den Farbcode des Fortschritts-Feldes in der Tabelle zurücksetzen
+        itm = self.tbl_files.item(job.tsObj.nr, 4)
+        itm.setBackground(Konstanten.normalFG)
+        itm.setForeground(Konstanten.normalBG)
+        itm.setText("--->")
+
         if self.running > 0:
             self.running -= 1
 
-        # self.setRowProgress(job.tsObj.nr, pro)
+        self.setRowProgress(job.tsObj.nr, pro)
         self.refreshTableRow( job.tsObj.nr)
         self.logJob(l + job.logBuffer)
         
@@ -598,40 +694,77 @@ def format_size(flen: int):
 
 
 def main():
+
+    # probar1 bg-color #2196F3;;
+
     StyleSheet = '''
+QMainWindow {
+    background-color: #fff5cc;
+}
+QTableWidgt {
+    background-color: DimGray;
+}
+
+QPushButton {
+        color: white;
+        background-color: Chocolate;
+        border-style: outset;
+        border-width: 1px;
+        border-radius: 5px;
+        border-color: black;        
+        padding: 3px;
+    }
+
 QProgressBar {
-    border: 2px solid #2196F3;
+    color: White;
+    border: 1px solid #2196F3;
     border-radius: 5px;
     background-color: #E0E0E0;
     text-align: center
 }
 QProgressBar::chunk {
-    background-color: #2196F3;
+    background-color: Chocolate;
 }
+
 #probar1 {
-    border: 2px solid #2196F3;
+    color: White;
+    border: 1px solid #2196F3;
     border-radius: 5px;
     background-color: #E0E0E0;
+    border-color: Black;
     text-align: center
 }
 #probar1::chunk {
-    background-color: #2196F3;
+    background-color: Chocolate;
 }
 
-#probar2 {    
-    border: 2px solid #2196F3;
+#probar2 {
+    color: Black;
+    border: 1px solid #2196F3;
     border-radius: 5px;
     background-color: #E0E0E0;
+    border-color: Black;
     text-align: center
 }
 #probar2::chunk {
-    background-color: #2196F3;
+    background-color: Chocolate;
 }
+
 
 '''
 # color: #2196F3;
 #     border: 2px solid #2196F3;
 #     border-radius: 5px;
+# #probar2 {    
+#     border: 2px solid #2196F3;
+#     border-radius: 5px;
+#     background-color: #E0E0E0;
+#     text-align: center
+# }
+# #probar2::chunk {
+#     background-color: #2196F3;
+# }
+
 
 
     app = QApplication(sys.argv)  # A new instance of QApplication
@@ -640,7 +773,8 @@ QProgressBar::chunk {
     if form.tsliste.size == 0:    # nix zu tun!
         return
     form.show()                   # Show the form
-    app.exec_()                   # and execute the app
+    if not form.processkilled:
+        app.exec()                   # and execute the app
 
 
 if __name__ == '__main__':        # if we're running file directly and not importing it

@@ -12,6 +12,7 @@ class videoFile:
         fname, fext = os.path.splitext(tail)
         self.name = fname
         self.ext = fext[1:]     # den Punkt übergehen        self.duration = 0   # FilmLänge in ms
+        self.mInfo = None
         self.frameCount = 0
         self.fps = 0.0
         self.bitRate = 0
@@ -19,19 +20,24 @@ class videoFile:
         self.hoehe = "768"
         self.typ = "HD"
         self.duration = 0.0
+        self.anzVideoTracks = 0
+        self.anzAudioTracks = 0
+        self.anzTextTracks = 0
         self.getVideoDetails()
 
     def getVideoDetails(self):
         try:
             media_info = MediaInfo.parse(self.fullPathName)
+            self.mInfo = media_info
             g_track = media_info.general_tracks[0]
-            v_track = media_info.video_tracks[0]
-
+            v_track = media_info.video_tracks[0]            
+            self.anzVideoTracks = len(media_info.video_tracks)
+            self.anzAudioTracks = len(media_info.audio_tracks)
+            self.anzTextTracks = len(media_info.text_tracks)
             v_fr = v_track.frame_rate
             v_fc = v_track.frame_count
             v_br = v_track.bitrate
             g_du = g_track.duration
-            # print("Video-FC =", v_fc)        
             self.fps = float(v_fr)
             self.weite = v_track.width
             iWeite  = int(self.weite)
@@ -54,10 +60,13 @@ class videoFile:
             return
 
 if __name__ == '__main__': 
-    vidf = "c:\\ts\\Abenteuer_Erde_-_Korsika_-_Wildnis_zwischen_Bergen_und_Meer.ts"
+    vidf = "e:\\filme\\schnitt\\Sture_Böcke_(2015).mkv"
     vid = videoFile(vidf)
     print("Video: ", vidf)
+    print(f"Anzahl Video Tracks: {vid.anzVideoTracks}")    
+    print(f"Anzahl Audio Tracks: {vid.anzAudioTracks}")    
+    print(f"Anzahl Text Tracks: {vid.anzTextTracks}")    
     print("Video-Abmessungen: ", vid.weite, "x", vid.hoehe)
     print("Video-Anz.Frames: ", vid.frameCount)
     print("Video-fps: ", vid.fps)
-
+    

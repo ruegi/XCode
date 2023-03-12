@@ -4,12 +4,13 @@ Created on 2021-07-27
 
 @author: rg
 
-Hauptprogramm mit pyqt5
+Hauptprogramm mit pyqt6
 
 Dieses Window transcodiert ein Video in ein HEVC-MKV mit Hilfe von ffmpeg und einer ffcmd.ini
+Es läuft als Unterprogramm in XCode2 in einem separaten Prozess
 
 """
-from PyQt5.QtWidgets import (QMainWindow, 
+from PyQt6.QtWidgets import (QMainWindow, 
 #                             QLabel, 
 #                             QLineEdit, 
 #                             QPushButton,
@@ -17,11 +18,11 @@ from PyQt5.QtWidgets import (QMainWindow,
                              QApplication, 
                              QFileDialog,
                              QMessageBox,
-                             QDesktopWidget
+#                             QDesktopWidget
                              )
 
-from PyQt5.QtGui import QIcon, QTextCursor          #, QColor,
-from PyQt5.QtCore import Qt, QProcess, pyqtSignal   # , QObject, 
+from PyQt6.QtGui import QIcon, QTextCursor          #, QColor,
+from PyQt6.QtCore import Qt, QProcess, pyqtSignal   # , QObject, 
 
 import sys
 import os
@@ -54,13 +55,13 @@ class Konstanten():
     LOGPATH = 'E:\\Filme\\log\\'
     MUSTER_FFMCMD = '''\    
 [SD]
-cmd = ffmpeg -hide_banner -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset fast -profile:v main10 -pix_fmt p010le -crf 28 -b:v 0 -maxrate 2M -bufsize 4M -dn -c:a copy -c:s dvdsub -y "{AusgabeDatei}"
+cmd = ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset fast -profile:v main10 -pix_fmt p010le -crf 28 -b:v 0 -maxrate 2M -bufsize 4M -dn -c:a copy {Untertitel} -y "{AusgabeDatei}"
 
 [HD]
-cmd = ffmpeg -hide_banner -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset slow -profile:v main10 -pix_fmt p010le -crf 23 -b:v 0 -maxrate 3M -bufsize 6M -dn -c:a copy -c:s dvdsub -y "{AusgabeDatei}"
+cmd = ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset slow -profile:v main10 -pix_fmt p010le -crf 23 -b:v 0 -maxrate 3M -bufsize 6M -dn -c:a copy {Untertitel} -y "{AusgabeDatei}"
 
 [FullHD]
-cmd = ffmpeg -hide_banner -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset slow -profile:v main10 -pix_fmt p010le -crf 23 -b:v 0 -maxrate 4M -bufsize 8M -dn -c:a copy -c:s dvdsub -y "{AusgabeDatei}"
+cmd = ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset slow -profile:v main10 -pix_fmt p010le -crf 23 -b:v 0 -maxrate 4M -bufsize 8M -dn -c:a copy {Untertitel} -y "{AusgabeDatei}"
 '''
 
 class mainApp(QMainWindow, transcodeWinUI.Ui_MainWindow):
@@ -210,7 +211,7 @@ class mainApp(QMainWindow, transcodeWinUI.Ui_MainWindow):
             # print("txtAnzFr: ", txtAnzFr, " ,Frame:", anzFrames," von ", self.video.frameCount, "Prozent:", pro)
         else:            
             self.te_ffmpeg.appendPlainText(txt)
-            self.te_ffmpeg.moveCursor(QTextCursor.End)
+            self.te_ffmpeg.moveCursor(QTextCursor.MoveOperation.End)
             self.log.log(txt)
         
     def closeProcessEvent(self, event):
@@ -236,25 +237,23 @@ class mainApp(QMainWindow, transcodeWinUI.Ui_MainWindow):
         m, s = divmod(self.prend - self.prstart, 60)
         h, m = divmod(m, 60)
         time_str = "{0:02.0f}:{1:02.0f}:{2:02.0f}".format(h, m, s)        
-        if exitStatus == 0:
-            if exitCode == 0:   # Abschluss-Verarbeitung, wenn alles gut gelaufen ist
-                self.log.log(self.le_frames.text() )
-                qlen = os.stat(self.ts_von).st_size
-                try:
-                    zlen = os.stat(self.ts_nach).st_size
-                except:
-                    zlen = 0    
-                self.log.log("{0} --> {1} ({2:2.2f}%)".format(format_size(qlen), format_size(zlen), zlen / qlen * 100))
-                self.log.log(f"Dauer: {time_str}; ReturnCode: {exitCode}")
-                self.log.log("OK")
-                try:
-                    shutil.move(self.ts_von, self.ts_von + ".done")
-                except:
-                    self.log.log("Warnung: Konnte die QuelleDatei nicht in *.done umbenennen!")
-                                
-            else:       # Abschluss-Verarbeitung bei Fehler
-                self.log.log("Fehler! ReturnCode: {0}".format(exitCode))
-                self.log.log("Letzter Befehl:\n{0}".format(self.cmd))                
+        if exitCode == 0:
+            # der exitStatus wird nicht mehr ausgewertet, weil ffmpeg trotz einwandfreiem
+            # Ergebnis immer StatusMeldungen < 0 ausgibt; rg, 2023-03-11
+            self.log.log(self.le_frames.text() )
+            qlen = os.stat(self.ts_von).st_size
+            try:
+                zlen = os.stat(self.ts_nach).st_size
+            except:
+                zlen = 0    
+            self.log.log("{0} --> {1} ({2:2.2f}%)".format(format_size(qlen), format_size(zlen), zlen / qlen * 100))
+            self.log.log(f"Dauer: {time_str}; ReturnCode={exitCode} (ExitStatus={exitStatus})")
+            self.log.log("OK")
+            try:
+                shutil.move(self.ts_von, self.ts_von + ".done")
+            except:
+                self.log.log("Warnung: Konnte die QuelleDatei nicht in *.done umbenennen!")
+                            
         else:            
             if self.processkilled:
                 self.log.log("Harter Abbruch! exitCode={0}, exitStatus={1}".format(exitCode, exitStatus))                
@@ -268,7 +267,8 @@ class mainApp(QMainWindow, transcodeWinUI.Ui_MainWindow):
 
     def getCmd(self):
         '''
-        liest die IniDatei ein und gibt den passenden cmd zurück
+        liest die IniDatei ein und gibt den passenden cmd 
+        in 'self.cmd' zurück
         liest dafür das video-Objekt aus
         '''
         pFile = Path(Konstanten.INIDATEI)
@@ -282,28 +282,29 @@ class mainApp(QMainWindow, transcodeWinUI.Ui_MainWindow):
         config = configparser.ConfigParser()   
         config.read(Konstanten.INIDATEI)
         if self.video.typ == "SD":
-            self.cmd = config.get('SD', 'cmd', fallback='ffmpeg -hide_banner -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset fast -profile:v main10 -pix_fmt p010le -crf 28 -b:v 0 -maxrate 2M -bufsize 4M -dn -c:a copy -c:s dvdsub -y "{AusgabeDatei}"')            
+            self.cmd = config.get('SD', 'cmd', fallback='ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset fast -profile:v main10 -pix_fmt p010le -crf 28 -b:v 0 -maxrate 2M -bufsize 4M -dn -c:a copy {Untertitel} -y "{AusgabeDatei}"')
         elif self.video.typ == "HD":
-            self.cmd =  config.get('HD', 'cmd', fallback='ffmpeg -hide_banner -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset slow -profile:v main10 -pix_fmt p010le -crf 23 -b:v 0 -maxrate 3M -bufsize 6M -dn -c:a copy -c:s dvdsub -y "{AusgabeDatei}"')
+            self.cmd =  config.get('HD', 'cmd', fallback='ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset slow -profile:v main10 -pix_fmt p010le -crf 23 -b:v 0 -maxrate 3M -bufsize 6M -dn -c:a copy {Untertitel} -y "{AusgabeDatei}"')
         else:
-            self.cmd = config.get('FullHD', 'cmd', fallback='ffmpeg -hide_banner -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset slow -profile:v main10 -pix_fmt p010le -crf 23 -b:v 0 -maxrate 4M -bufsize 8M -dn -c:a copy -c:s dvdsub -y "{AusgabeDatei}"')
+            self.cmd = config.get('FullHD', 'cmd', fallback='ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset slow -profile:v main10 -pix_fmt p010le -crf 23 -b:v 0 -maxrate 4M -bufsize 8M -dn -c:a copy {Untertitel} -y "{AusgabeDatei}"')
 
-        if self.cmd.index("{EingabeDatei}") > -1:
+        if "{EingabeDatei}" in self.cmd:
             self.cmd = self.cmd.replace("{EingabeDatei}", self.video.fullPathName)        
-        if self.cmd.index("{AusgabeDatei}") > -1:
+        if "{AusgabeDatei}" in self.cmd:
             ausgabe = Konstanten.XCODEZIEL + self.video.name + ".mkv"
             self.cmd = self.cmd.replace("{AusgabeDatei}", ausgabe)
 
+        if "{Untertitel}" in self.cmd:
+            if self.video.anzTextTracks > 0:
+                self.cmd = self.cmd.replace("{Untertitel}", "-c:s dvdsub")
+            else:
+                self.cmd = self.cmd.replace("{Untertitel}", " ")
+        if "{canvassize}" in self.cmd:
+            if self.video.anzTextTracks > 0:
+                self.cmd = self.cmd.replace("{canvassize}", f"-canvas_size {self.video.weite}x{self.video.hoehe}")
+            else:
+                self.cmd = self.cmd.replace("{canvassize}", " ")
 
-    # Slots
-    # def eventFilter(self, source, event):
-    #     if (event.type() == QEvent.FocusOut and
-    #         source is self.leName):
-    #         # print('eventFilter: focus out')
-    #         if self.grpLaden(self.leName.text()) > 0:
-    #             self.leName.setFocus()
-    #             return True
-    #     return super(QMainWindow, self).eventFilter(source, event)
 
     def startjob(self):
         self.prstart = timer()
@@ -311,7 +312,7 @@ class mainApp(QMainWindow, transcodeWinUI.Ui_MainWindow):
         self.running = True
         self.process=QProcess()
         self.process.finished.connect(self.onFinished)
-        self.process.setProcessChannelMode(QProcess.MergedChannels)
+        self.process.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
         self.process.readyReadStandardOutput.connect(self.onReadProcessData)        
         self.process.start(self.cmd)
         # print("In startjob Nach Process Start")
@@ -350,9 +351,6 @@ class mainApp(QMainWindow, transcodeWinUI.Ui_MainWindow):
                         if not self.log is None: self.log.log("Defekte Zieldatei [{0}] konnte NICHT gelöscht werden!")
                     else:
                         if not self.log is None: self.log.log("Defekte Zieldatei wurde gelöscht!")
-                # if not self.log is None: self.log.log("Harter Abbruch!")
-                # txt = "Harter Abbruch!"
-                # if not self.log is None: self.log.log("Ende nach Abbruch!" )
             else:
                 # print("nicht in killed!")
                 txt = "Programm-Ende!"
@@ -374,10 +372,10 @@ class mainApp(QMainWindow, transcodeWinUI.Ui_MainWindow):
     def progende(self):     # Ende Proc mit Nachfrage
         reply = QMessageBox.question( self, "Nachfrage",
             "Ablauf abbrechen?\nDie aktuelle Konvertierung wird beendet und das halbfertige Ergebnis wird gelöscht werden!",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No)
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No)
 
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes.value:
             self.processkilled = True
             # print("IN progende")
             self.ende_verarbeitung()
@@ -419,8 +417,38 @@ def format_size(flen: int):
         
 def main(pname, win):
     # global pname
+    StyleSheet = '''
+QMainWindow {
+    background-color: #fff5cc;
+}
+
+QPushButton {
+        color: white;
+        background-color: Chocolate;
+        border-style: outset;
+        border-width: 1px;
+        border-radius: 5px;
+        border-color: Black;
+        padding: 3px;
+    }
+
+QProgressBar {
+    color: White;
+    border: 1px solid;
+    border-radius: 5px;
+    background-color: #E0E0E0;
+    border-color: Black;
+    text-align: center
+}
+QProgressBar::chunk {
+    background-color: Chocolate;
+}
+'''
+#  #2196F3
     app = QApplication(sys.argv)  # A new instance of QApplication
-    form = mainApp(file=pname, win=win)              # We set the form to be our App (design)    
+    app.setStyleSheet(StyleSheet)
+
+    form = mainApp(file=pname, win=win)              # We set the form to be our App (design)
     # if not pname is None and pname > "": 
     #     form.setStartParms(pname, win=win)
         # print(f"{form.le_quelle.text()} gesetzt!")

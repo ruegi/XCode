@@ -1,9 +1,11 @@
 *.txt
 *.alt
+*.bat
 dist/
 __pycache__/
 build/
 idea/
+tests/
 *.png
 tst_*.py
 .qt_for_*

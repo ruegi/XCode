@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>817</width>
-    <height>728</height>
+    <height>739</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -16,6 +16,10 @@
   <property name="windowIcon">
    <iconset>
     <normaloff>XC.ico</normaloff>XC.ico</iconset>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">
+</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">
@@ -63,15 +67,8 @@
          </size>
         </property>
         <property name="styleSheet">
-         <string notr="true">QProgressBar {
-    border: 2px solid #2196F3;
-    border-radius: 5px;
-    background-color: #E0E0E0;
-    text-align: center
-}
-QProgressBar::chunk {
-    background-color: #2196F3;
-}</string>
+         <string notr="true">
+</string>
         </property>
         <property name="editTriggers">
          <set>QAbstractItemView::NoEditTriggers</set>
@@ -143,7 +140,7 @@ QProgressBar::chunk {
            <enum>Qt::Vertical</enum>
           </property>
           <property name="sizeType">
-           <enum>QSizePolicy::Preferred</enum>
+           <enum>QSizePolicy::Fixed</enum>
           </property>
           <property name="sizeHint" stdset="0">
            <size>
@@ -169,20 +166,7 @@ QProgressBar::chunk {
         <item>
          <widget class="QPushButton" name="btn_ende">
           <property name="sizePolicy">
-           <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="text">
-           <string>Ende</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="btn_start">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
@@ -192,6 +176,31 @@ QProgressBar::chunk {
             <width>0</width>
             <height>40</height>
            </size>
+          </property>
+          <property name="styleSheet">
+           <string notr="true"/>
+          </property>
+          <property name="text">
+           <string>Ende</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btn_start">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="minimumSize">
+           <size>
+            <width>0</width>
+            <height>40</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string notr="true"/>
           </property>
           <property name="text">
            <string>Start</string>
@@ -212,7 +221,7 @@ QProgressBar::chunk {
          <enum>Qt::RightToLeft</enum>
         </property>
         <property name="autoFillBackground">
-         <bool>true</bool>
+         <bool>false</bool>
         </property>
         <property name="text">
          <string>Version 0.0 vom 00.00.2021</string>
@@ -226,7 +235,6 @@ QProgressBar::chunk {
   <widget class="QStatusBar" name="statusbar">
    <property name="font">
     <font>
-     <weight>75</weight>
      <bold>true</bold>
     </font>
    </property>

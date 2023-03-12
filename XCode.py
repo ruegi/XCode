@@ -13,9 +13,11 @@ Versionen:
         frame-Zeile in der Statuszeile
 1.3     Info Typ als neue Spalte in der Tabelle;
         Fortschrittsbalken in der Spalte 'Status' der Tabelle
+2.0     Umstellung auf PyQt6; erweiterter Parameter -canvas_size ... in ffmpeg,
+        um den dvdsub-Fehler 'canvas_size(0:0) is too small for render' zu beheben
 
 """
-from PyQt5.QtWidgets import (QMainWindow,
+from PyQt6.QtWidgets import (QMainWindow,
                              QTextEdit, 
                              QTableWidget,
                              QTableWidgetItem,
@@ -32,8 +34,8 @@ from PyQt5.QtWidgets import (QMainWindow,
                              QStyleOptionProgressBar,
                              QStyle)
 
-from PyQt5.QtCore import QProcess, QObject, Qt
-from PyQt5.QtGui import QTextCursor, QColor, QIcon
+from PyQt6.QtCore import QProcess, QObject, Qt
+from PyQt6.QtGui import QTextCursor, QColor, QIcon
 
 from math import log as logarit
 from timeit import default_timer as timer
@@ -59,8 +61,8 @@ class Konstanten:                       # Konstanten des Programms
     QUELLE  = "C:\\ts\\"
     ZIEL    = "E:\\Filme\\schnitt\\"
     LOGPATH = "E:\\Filme\\log\\"
-    VERSION = "1.3"
-    VERSION_DAT = "2021-07-24"
+    VERSION = "2.0"
+    VERSION_DAT = "2023-03-08"
 
 class videoFile:
     def __init__(self, fullPathName, name, ext):

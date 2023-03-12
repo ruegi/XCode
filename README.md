@@ -1,5 +1,6 @@
 # XCode
-Transcodiert eine Liste von ts-Files (Filme) mittels ffmpeg
+Transcodiert eine Liste von ts-Files (Filme) mittels ffmpeg.
+Die ffmpeg Parameter wurden 
 
 XCode liest eine Liste von *.ts (*.mpeg etc) Files ein und transcodiert sie nach "Start" in einen ZielOrdner.
 Die GUI ist ein PyQT5 Projekt.
@@ -21,6 +22,15 @@ Bei n=4 scheitert die 4. Tanscodierung an einem "out of memory" Fehler.
 Ernüchternd: die gleichzeitigen Transcodierungen teilen sich eine Grafikkarte.
 Darum reduziert sich die Geschwindigkeit auf 1/n. Man hat also keinen Geschwindigkeitsvorteil.
 Ich arbeite daher mit n = 1.
+
+2022-03-11:
+Umstellung auf PyQt6.
+Neue Farbgebung von xcode2.py; der Fortschrittsbalken in der Tabelle der zu trankodierenden Filme wurde entfernt, da ich keine Möglichkeit fand, seine in meinem Kontext häßliche Farbe der "trunk" zu ändern.
+Weitere Überarbeitung der Teilprogramme.
+Der ExitStatus von ffmpeg wird nicht mehr beachtet, da er selbst bei einwandfrei bearbeiteten Videos von 0 verschieden ist, ohne dass ich eine Lösung / Bedeutung gefunden habe. (Die errors.h von ffmpeg half da auch nicht weiter.)
+ffcmd.ini:
+    Die neuen Parameter {canvas_size} und {Untertitel} vermeiden einen Fehler, den das neue ffmpeg meldet.
+
 
 ruegi
 
