@@ -17,6 +17,14 @@ Versionen:
 2.1     Umstellung auf PyQt6; Einbau des Parameters {canvassize} in ffcmd.ini,
         um den dvdsub-Fehler 'canvas_size(0:0) is too small for render' zu beheben
 2.2     neue Farbgebung; Einbau des Parameters {Untertitel} in ffcmd.ini, Fehlerbereinigung
+2.3     Entfernung des Tags {Untertitel}; Grund: ffmpeg wertet Tracks, die MeiaInfo als Audiotracks
+        ansieht, als Text (also Untertitel) aus. Wenn dann das 'c:v -dvdsub' fehlt, kommt es zu Fehlern.
+        Besser ist es, das 'c:v ...' stets mitzugeben.
+
+Offene Probleme:
+        - die Farbgebung in den Zellen der Spalte 'Progress' ist zickig, instabil.
+        - die Tabelle muss, wenn transcodiert wird, auf readonly gestellt weren; vor allem die 
+            Funktion DoppelKlick in der 'X' Spalte.
 """
 # from _typeshed import Self
 from PyQt6.QtWidgets import (QMainWindow,
@@ -69,13 +77,14 @@ class Konstanten:                       # Konstanten des Programms
     QUELLE  = "C:\\ts\\"
     ZIEL    = "E:\\Filme\\schnitt\\"
     LOGPATH = "E:\\Filme\\log\\"
-    VERSION = "2.2"
-    VERSION_DAT = "2023-03-11"
+    VERSION = "2.3"
+    VERSION_DAT = "2023-03-15"
     MAXJOBS = 1     # mehr lohnt nicht!!
     normalFG = QBrush(QColor.fromString("Gray"))
     normalBG = QBrush(QColor.fromString("White"))
     highFG = QBrush(QColor.fromString("White"))
     highBG = QBrush(QColor.fromString("Chocolate"))
+    OkFG = QBrush(QColor.fromString("Green"))
 
 
 class videoFile:
@@ -453,8 +462,15 @@ class XCodeApp(QMainWindow, XCodeUI2.Ui_MainWindow):
             itm.setText(str(tsObj.progress) + " %")
             itm.setBackground(Konstanten.highBG)
             itm.setForeground(Konstanten.highFG)            
-        else:
+        elif tsObj.status == "OK":
+            itm.setText("erledigt")
+            itm.setBackground(Konstanten.OkFG)
+        elif tsObj.status == "warten...":
             itm.setText("--->")
+            itm.setBackground(Konstanten.normalBG)
+            itm.setForeground(Konstanten.normalFG)
+        else:            
+            itm.setText("-?->")
             itm.setBackground(Konstanten.normalBG)
             itm.setForeground(Konstanten.normalFG)
         

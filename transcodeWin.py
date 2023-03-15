@@ -55,13 +55,13 @@ class Konstanten():
     LOGPATH = 'E:\\Filme\\log\\'
     MUSTER_FFMCMD = '''\    
 [SD]
-cmd = ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset fast -profile:v main10 -pix_fmt p010le -crf 28 -b:v 0 -maxrate 2M -bufsize 4M -dn -c:a copy {Untertitel} -y "{AusgabeDatei}"
+cmd = ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset fast -profile:v main10 -pix_fmt p010le -crf 28 -b:v 0 -maxrate 2M -bufsize 4M -dn -c:a copy -c:s dvdsub -y "{AusgabeDatei}"
 
 [HD]
-cmd = ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset slow -profile:v main10 -pix_fmt p010le -crf 23 -b:v 0 -maxrate 3M -bufsize 6M -dn -c:a copy {Untertitel} -y "{AusgabeDatei}"
+cmd = ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset slow -profile:v main10 -pix_fmt p010le -crf 23 -b:v 0 -maxrate 3M -bufsize 6M -dn -c:a copy -c:s dvdsub -y "{AusgabeDatei}"
 
 [FullHD]
-cmd = ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset slow -profile:v main10 -pix_fmt p010le -crf 23 -b:v 0 -maxrate 4M -bufsize 8M -dn -c:a copy {Untertitel} -y "{AusgabeDatei}"
+cmd = ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset slow -profile:v main10 -pix_fmt p010le -crf 23 -b:v 0 -maxrate 4M -bufsize 8M -dn -c:a copy -c:s dvdsub -y "{AusgabeDatei}"
 '''
 
 class mainApp(QMainWindow, transcodeWinUI.Ui_MainWindow):
@@ -282,23 +282,18 @@ class mainApp(QMainWindow, transcodeWinUI.Ui_MainWindow):
         config = configparser.ConfigParser()   
         config.read(Konstanten.INIDATEI)
         if self.video.typ == "SD":
-            self.cmd = config.get('SD', 'cmd', fallback='ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset fast -profile:v main10 -pix_fmt p010le -crf 28 -b:v 0 -maxrate 2M -bufsize 4M -dn -c:a copy {Untertitel} -y "{AusgabeDatei}"')
+            self.cmd = config.get('SD', 'cmd', fallback='ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset fast -profile:v main10 -pix_fmt p010le -crf 28 -b:v 0 -maxrate 2M -bufsize 4M -dn -c:a copy -c:s dvdsub -y "{AusgabeDatei}"')
         elif self.video.typ == "HD":
-            self.cmd =  config.get('HD', 'cmd', fallback='ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset slow -profile:v main10 -pix_fmt p010le -crf 23 -b:v 0 -maxrate 3M -bufsize 6M -dn -c:a copy {Untertitel} -y "{AusgabeDatei}"')
+            self.cmd =  config.get('HD', 'cmd', fallback='ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset slow -profile:v main10 -pix_fmt p010le -crf 23 -b:v 0 -maxrate 3M -bufsize 6M -dn -c:a copy -c:s dvdsub -y "{AusgabeDatei}"')
         else:
-            self.cmd = config.get('FullHD', 'cmd', fallback='ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset slow -profile:v main10 -pix_fmt p010le -crf 23 -b:v 0 -maxrate 4M -bufsize 8M -dn -c:a copy {Untertitel} -y "{AusgabeDatei}"')
+            self.cmd = config.get('FullHD', 'cmd', fallback='ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset slow -profile:v main10 -pix_fmt p010le -crf 23 -b:v 0 -maxrate 4M -bufsize 8M -dn -c:a copy -c:s dvdsub -y "{AusgabeDatei}"')
 
-        if "{EingabeDatei}" in self.cmd:
-            self.cmd = self.cmd.replace("{EingabeDatei}", self.video.fullPathName)        
-        if "{AusgabeDatei}" in self.cmd:
-            ausgabe = Konstanten.XCODEZIEL + self.video.name + ".mkv"
-            self.cmd = self.cmd.replace("{AusgabeDatei}", ausgabe)
+        # if "{EingabeDatei}" in self.cmd:
+        self.cmd = self.cmd.replace("{EingabeDatei}", self.video.fullPathName)        
+        # if "{AusgabeDatei}" in self.cmd:
+        ausgabe = Konstanten.XCODEZIEL + self.video.name + ".mkv"
+        self.cmd = self.cmd.replace("{AusgabeDatei}", ausgabe)
 
-        if "{Untertitel}" in self.cmd:
-            if self.video.anzTextTracks > 0:
-                self.cmd = self.cmd.replace("{Untertitel}", "-c:s dvdsub")
-            else:
-                self.cmd = self.cmd.replace("{Untertitel}", " ")
         if "{canvassize}" in self.cmd:
             if self.video.anzTextTracks > 0:
                 self.cmd = self.cmd.replace("{canvassize}", f"-canvas_size {self.video.weite}x{self.video.hoehe}")
