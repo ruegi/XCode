@@ -37,7 +37,7 @@ from PyQt6.QtWidgets import (QMainWindow,
                              QStyle)
 
 from PyQt6.QtCore import QProcess, QObject, Qt
-from PyQt6.QtGui import QTextCursor, QFont, QIcon, QColor
+from PyQt6.QtGui import QTextCursor, QFont, QIcon, QColor, QBrush
 
 from math import log as logarit
 from timeit import default_timer as timer
@@ -61,6 +61,11 @@ class Konstanten:                       # Konstanten des Programms
     LOGPATH = "E:\\Filme\\log\\"
     VERSION = "2.3"
     VERSION_DAT = "2023-05-31"
+    normalFG = QBrush(QColor.fromString("Gray"))
+    normalBG = QBrush(QColor.fromString("White"))
+    highFG = QBrush(QColor.fromString("White"))
+    highBG = QBrush(QColor.fromString("Chocolate"))
+    OkFG = QBrush(QColor.fromString("Green"))
 
 
 class ladeFenster(QWidget):
@@ -110,9 +115,10 @@ class tsEintrag:
     def setStatus(self, status):
         self.status = status
 
-    def toggleX(self):
-        if self.status == "OK":
-            return   # keine Änderung, da bereits fertig
+    def toggleXObj(self):
+        if self.status == "OK" or self.status == "Fehler" or self.status == "in Arbeit":
+            print("keine Änderung")
+            return   # keine Änderung, da bereits abgearbeitet
 
         if self.X == "X":
             self.X = ""
@@ -121,6 +127,17 @@ class tsEintrag:
             self.X = "X"
             self.status = "warten..."
         return
+# (self):
+#         if self.status == "OK":
+#             return   # keine Änderung, da bereits fertig
+
+#         if self.X == "X":
+#             self.X = ""
+#             self.status = "-skip-"
+#         else:
+#             self.X = "X"
+#             self.status = "warten..."
+#         return
 
 
 class jobControl():
@@ -317,12 +334,14 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         # zunächst die aktuelle Zeile finden
         idx = self.tbl_files.selectedIndexes()[0]
         row = idx.row()
-        Datei = self.tsliste.findRow(row)
+        Datei = self.tsliste.getRow(row)
         if Datei is None:
             return
         else:
-            Datei.toggleX()
-            self.refreshTable(False)    # kein neuaufbau
+            Datei.toggleXObj()
+            self.refreshTableRow(row)    # kein Neuaufbau
+            self.tbl_files.selectRow(row)
+            # self.refreshTable(False)    # kein neuaufbau
         return
 
     def onFinished(self,  exitCode,  exitStatus):
@@ -496,6 +515,37 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
                     break
 
         self.tbl_files.selectRow(self.tsliste.lastPos)
+
+    def refreshTableRow(self, row):
+        # aktualisiert nur eine einzelne Zeile
+        # in den Spalten 1, 4, 5
+        # muss dafür das passende tsObj finden
+        tsObj = self.tsliste.liste[row]
+        self.tbl_files.setItem(row, 1, QTableWidgetItem(tsObj.X))
+        itm = self.tbl_files.item(row, 1)
+        itm.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        itm = self.tbl_files.item(row, 4)
+        itm.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        if tsObj.status == "in Arbeit...":
+            itm.setText(str(tsObj.progress) + " %")
+            itm.setBackground(Konstanten.highBG)
+            itm.setForeground(Konstanten.highFG)
+        elif tsObj.status == "OK":
+            itm.setText("erledigt")
+            itm.setBackground(Konstanten.OkFG)
+        elif tsObj.status == "warten...":
+            itm.setText("--->")
+            itm.setBackground(Konstanten.normalBG)
+            itm.setForeground(Konstanten.normalFG)
+        else:
+            itm.setText("-?->")
+            itm.setBackground(Konstanten.normalBG)
+            itm.setForeground(Konstanten.normalFG)
+
+        self.tbl_files.setItem(row, 5, QTableWidgetItem(tsObj.status))
+        itm = self.tbl_files.item(row, 5)
+        itm.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.tbl_files.selectRow(row)
 
     def convert(self):
         '''

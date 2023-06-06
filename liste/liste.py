@@ -40,6 +40,7 @@ verfügbare Methoden:
     zap()                       Löscht die enthaltene Liste und setzt alle Verwaltungsvariablen zurück
 """
 
+
 class liste():
     def __init__(self):
         self.liste = []
@@ -68,7 +69,7 @@ class liste():
             return None
 
     def findNext(self):
-        if self.size > 0:            
+        if self.size > 0:
             if self.lastPos == self.size - 1:  		# Ende erreicht; lastPos bleibt auf size-1
                 self.lastObj = None
             # elif self.lastPos == - 1:				# Anfang; erstes Element ausliefern
@@ -110,7 +111,7 @@ class liste():
 
     def isLast(self):
         if self.size > 0:
-            if self.lastPos == self.size -1:
+            if self.lastPos == self.size - 1:
                 return True
         return False
 
@@ -131,17 +132,17 @@ class liste():
             d = self.liste[i]
             # print("v =", v)
             if otyp:    # In der Liste stehen Objekte
-                v = vars(d)            
+                v = vars(d)
                 if attribut in v:
                     if v[attribut] == wert:
                         return self.liste[i]    # Treffer
                 else:
-                    return None # Attribut gibts nicht
+                    return None  # Attribut gibts nicht
             else:   # simple Typen in der Liste
                 if d == wert:
                     return d
 
-        return None # nichts gefunden
+        return None  # nichts gefunden
 
     def findPos(self, pos: int):
         # positioniert auf Satz Nr. pos, wenn möglich, sonst none
@@ -153,11 +154,11 @@ class liste():
             return None
 
     def findAll(self, attribut, wert):
-        # findet alle Sätze, deren Attribut den angegebenen Wert haben 
+        # findet alle Sätze, deren Attribut den angegebenen Wert haben
         # und gibt die Liste der Satznummern zurück
-        
+
         erglst = []
-        
+
         # erst den Typ der Objekte bestimmen
         d = self.findFirst()
         if type(d).__name__ in ("int", "long", "float", "str"):
@@ -166,12 +167,12 @@ class liste():
                 return None
         else:
             otyp = True
-            v = vars(d)            
+            v = vars(d)
             if not attribut in v:
-                return None        
+                return None
 
-        if otyp:           
-            for i in range(self.size):                
+        if otyp:
+            for i in range(self.size):
                 v = vars(self.liste[i])
                 if v[attribut] == wert:
                     erglst.append(i)    # Treffer
@@ -183,7 +184,7 @@ class liste():
 
     def zap(self):
         # löscht die Liste und alle Verwaltungsvariablen
-        #         
+        #
         self.liste = []
         self.size = 0
         self.lastPos = -1
@@ -194,14 +195,15 @@ class liste():
             return self.liste[row]
         else:
             return None
-            
 
-if __name__ == '__main__': 
+
+if __name__ == '__main__':
     class Beispiel():
         def __init__(self, Name, Vorname, Alter):
             self.Name = Name
             self.Vorname = Vorname
             self.Alter = Alter
+
         def __str__(self):
             return "Name: " + self.Vorname + " " + self.Name + "; Alter: " + str(self.Alter)
 
@@ -212,11 +214,11 @@ if __name__ == '__main__':
 
     for e in [a, b, c]:
         l.append(e)
-    
+
     neul = liste()
     for e in [123, 345, 567]:
         neul.append(e)
-        
+
     print("Liste l hat {} Einträge!".format(l.size))
 
     # l.findFirst()
@@ -237,20 +239,21 @@ if __name__ == '__main__':
     print("Is Last? - {}".format(l.isLast()))
     print("Is New? - {}".format(l.isNew()))
     print("VorLetzter Eintrag: {}".format(l.findPrev()))
-    print("Is First? - {} / Is Last? - {} / Is New? - {}".format(l.isFirst(), l.isLast(), l.isNew()))
-       
+    print("Is First? - {} / Is Last? - {} / Is New? - {}".format(l.isFirst(),
+          l.isLast(), l.isNew()))
+
     print("-"*20)
-    
+
     o = l.find("Vorname", "Thea")
     if o is None:
-        print("Find Thea? {}", "Nixgefunden!")    
+        print("Find Thea? {}", "Nixgefunden!")
     else:
         print("Find Thea? {}".format(o))
-    
+
     print("-"*20)
     # print(type(1.0).__name__, type("a").__name__, type(a).__name__)
-    
-    #test einer Liste mit int-Objekten
+
+    # test einer Liste mit int-Objekten
     x = neul.find(None, 345)
     print("In neuL gefunden! {}".format(x))
 
