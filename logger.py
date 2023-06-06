@@ -14,6 +14,8 @@
 # ab 2016-10-26 objektorientiert
 # 2016-10-27    vereinfachtes Handling; TimeStamp eingeführt
 # 2021-11-23    bessere Ausrichtung bei Mutli-Line Texten & TimeStamp
+# 2023-05-31    Klares Verhalten bei NewLine im Text (siehe fun 'logEintrag')
+#
 # -----------------------------------------------------------------------------------
 from datetime import datetime
 import os
@@ -47,31 +49,49 @@ class logFile:
         :rtype: nil
         :param lstr: string
         :return: nil
+        Besonderheiten bei NewLine im logText:
+        - bei führender NewLine wird diese ohne TimeStamp ausgeführt
+        - zwei oder mehr NewLines werden zu einer verdichtet
         """
-        
-        # lts = logText.split(os.linesep)
-        lts = logText.split("\n")
+        # lgt = logText.strip()
+        # if lgt.startswith("frame= 9482"):
+        #     xxx = bytes(logText, "utf8")
+        #     print(logText)
+        #     print(xxx)
+        #     xx = logText.split(str(0x0D0,0x0A))
+        #     for l in xx:
+        #         print("-->", l)
+
+        neu = chr(0x0D) + chr(0x0A)
+        alt = chr(0x0D) + neu
+        lts = logText.replace(alt, neu)
+        lts = lts.split("\n")
         dtme = datetime.now().strftime("%d.%m.%Y %H:%M:%S") + " : "
         dtme_blank = " " * len(dtme)
+        lg = open(self.LogName, encoding="utf-8", mode='a')
+        i = 0
         first = True
-        # akku = ""
-        lg = open(self.LogName, encoding="utf-8", mode='a')            
-        for st in lts:
-            if self.TimeStamp:
-                if first:
-                    lt = dtme + st
-                    first = False
-                else:
-                    lt = dtme_blank + st
+        einLeer = False             
+        for txt in lts:
+            txt = txt.rstrip()
+            if txt == "":   # Zeilenvorschub oder leere Zeile
+                if einLeer: # zwei oder mehrere NewLine überspringen
+                    continue
+                einLeer = True
+                lt = ""
             else:
-                lt = st
-            # akku += lt + "\n"            
+                einLeer = False
+                if self.TimeStamp:
+                    if first:
+                        lt = dtme + txt
+                        first = False
+                    else:
+                        lt = dtme_blank + txt
+                else:
+                    lt = txt
             print(lt, file=lg, end="\n")
             if self.printout:
                 print(lt)
-            # 
-        # print(akku, file=lg, end="\n")
-        # lg.write(akku + "\n")
         lg.close()
 
 # ----Klasse LogFile Ende----------------------------------------------------------------------
@@ -92,8 +112,8 @@ if __name__ == "__main__":
     log = openlog(os.path.basename(__file__)+".log", TimeStamp=True)
     log.logEintrag("Erster!")
     log.log("Letzter Log-Eintrag")
-    log.log("Mehrzeiler!\nDas ist die 2. Zeile.\nUnd das ist der Schluss.\n")
+    xx = "Mehrzeiler!" + chr(0x0D) + chr(0x0D) + chr(0x0A) + "Das ist die 2. Zeile.\nUnd das ist der Schluss.\n"
+    log.log(xx)
     log.log("Bye!")
     log.close()
-
 

@@ -1,6 +1,8 @@
 '''
 Klassendefinition der Klasse videoFile
 rg, 2021-07-30
+Änderungen
+2023-05-30  rg      Parameter bitRate ergänzt 
 '''
 import os
 from pymediainfo import MediaInfo
@@ -36,15 +38,19 @@ class videoFile:
             self.anzTextTracks = len(media_info.text_tracks)
             v_fr = v_track.frame_rate
             v_fc = v_track.frame_count
-            v_br = v_track.bitrate
+            v_br = v_track.bitrate            
             g_du = g_track.duration
             self.fps = float(v_fr)
             self.weite = v_track.width
             iWeite  = int(self.weite)
             self.hoehe = v_track.height
-            self.bitRate = v_track.bit_rate
+            if not v_br:
+                self.bitRate = g_track.overall_bit_rate
+                # self.bitRate = str(v_track.bit_rate)
             if self.bitRate is None:
                 self.bitRate = 0
+            else:
+                self.bitRate = str(int(self.bitRate / 1000)) + " kB/s"
             self.duration = float(g_du)
             self.frameCount = int(self.duration / 1000 * self.fps + 0.5)
             if iWeite < 1280:
@@ -60,7 +66,7 @@ class videoFile:
             return
 
 if __name__ == '__main__': 
-    vidf = "e:\\filme\\schnitt\\Sture_Böcke_(2015).mkv"
+    vidf = "e:\\filme\\schnitt\\Quo_vadis_(1951).mkv"
     vid = videoFile(vidf)
     print("Video: ", vidf)
     print(f"Anzahl Video Tracks: {vid.anzVideoTracks}")    
@@ -69,4 +75,5 @@ if __name__ == '__main__':
     print("Video-Abmessungen: ", vid.weite, "x", vid.hoehe)
     print("Video-Anz.Frames: ", vid.frameCount)
     print("Video-fps: ", vid.fps)
+    print("BitRate: ", vid.bitRate)
     

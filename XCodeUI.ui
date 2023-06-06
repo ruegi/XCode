@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>817</width>
-    <height>712</height>
+    <width>1280</width>
+    <height>800</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -111,7 +111,25 @@ QProgressBar::chunk {
       <item row="6" column="1">
        <widget class="QTextEdit" name="edit">
         <property name="enabled">
-         <bool>false</bool>
+         <bool>true</bool>
+        </property>
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
+          <horstretch>0</horstretch>
+          <verstretch>1</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>192</height>
+         </size>
+        </property>
+        <property name="baseSize">
+         <size>
+          <width>1147</width>
+          <height>192</height>
+         </size>
         </property>
         <property name="font">
          <font>
@@ -133,14 +151,14 @@ QProgressBar::chunk {
         </property>
        </widget>
       </item>
-      <item row="10" column="0">
+      <item row="11" column="0">
        <widget class="QLabel" name="lbl_fortschritt">
         <property name="text">
          <string>Fortschritt</string>
         </property>
        </widget>
       </item>
-      <item row="10" column="1">
+      <item row="11" column="1">
        <layout class="QHBoxLayout" name="horizontalLayout_3">
         <item alignment="Qt::AlignLeft">
          <widget class="QProgressBar" name="probar2">
@@ -167,15 +185,18 @@ QProgressBar::chunk {
         </item>
        </layout>
       </item>
-      <item row="12" column="1">
+      <item row="13" column="1">
        <layout class="QHBoxLayout" name="horizontalLayout">
+        <property name="sizeConstraint">
+         <enum>QLayout::SetNoConstraint</enum>
+        </property>
         <item>
          <spacer name="verticalSpacer">
           <property name="orientation">
            <enum>Qt::Vertical</enum>
           </property>
           <property name="sizeType">
-           <enum>QSizePolicy::Preferred</enum>
+           <enum>QSizePolicy::Fixed</enum>
           </property>
           <property name="sizeHint" stdset="0">
            <size>
@@ -201,10 +222,33 @@ QProgressBar::chunk {
         <item>
          <widget class="QPushButton" name="btn_ende">
           <property name="sizePolicy">
-           <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+           <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
+          </property>
+          <property name="minimumSize">
+           <size>
+            <width>75</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>40</height>
+           </size>
+          </property>
+          <property name="baseSize">
+           <size>
+            <width>75</width>
+            <height>40</height>
+           </size>
+          </property>
+          <property name="font">
+           <font>
+            <pointsize>11</pointsize>
+           </font>
           </property>
           <property name="text">
            <string>Ende</string>
@@ -214,16 +258,33 @@ QProgressBar::chunk {
         <item>
          <widget class="QPushButton" name="btn_start">
           <property name="sizePolicy">
-           <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+           <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
           <property name="minimumSize">
            <size>
-            <width>0</width>
+            <width>75</width>
             <height>40</height>
            </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>40</height>
+           </size>
+          </property>
+          <property name="baseSize">
+           <size>
+            <width>75</width>
+            <height>40</height>
+           </size>
+          </property>
+          <property name="font">
+           <font>
+            <pointsize>11</pointsize>
+           </font>
           </property>
           <property name="text">
            <string>Start</string>
@@ -238,7 +299,7 @@ QProgressBar::chunk {
         </item>
        </layout>
       </item>
-      <item row="13" column="1">
+      <item row="14" column="1">
        <widget class="QLabel" name="lbl_version">
         <property name="layoutDirection">
          <enum>Qt::RightToLeft</enum>
@@ -251,6 +312,18 @@ QProgressBar::chunk {
         </property>
        </widget>
       </item>
+      <item row="10" column="1">
+       <widget class="QLabel" name="lbl_frames">
+        <property name="font">
+         <font>
+          <bold>true</bold>
+         </font>
+        </property>
+        <property name="text">
+         <string>TextLabel</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </item>
    </layout>
@@ -258,7 +331,6 @@ QProgressBar::chunk {
   <widget class="QStatusBar" name="statusbar">
    <property name="font">
     <font>
-     <weight>75</weight>
      <bold>true</bold>
     </font>
    </property>

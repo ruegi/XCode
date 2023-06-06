@@ -9,122 +9,130 @@ laden der ffmpeg-Befehle aus einer Datei und montieren des Transcode-Aufrufs
 
 Änderungen:
 2020-02-04  rg      Analyse der Codierung der Quelldatei eingebaut
+2023-05-29  rg      videoFile integriert; Codierung der QuellDatei wieder entfernt
 """
 from pathlib import Path
-from os.path import split, splitext
+# from os.path import split, splitext
 import configparser
-import filmAlyser
+import videoFile
+import os
 
-muster_ffcmd = '''\
+class Konstanten():
+    FFMPEG = r'c:\ffmpeg\bin\ffmpeg.exe'
+    ICON = 'XCode.ico'
+    INIDATEI = r'.\ffcmd.ini'
+    XCODEZIEL = 'E:\\Filme\\schnitt\\'
+    LOGPATH = 'E:\\Filme\\log\\'
+    SD_CMD = 'c:\\ffmpeg\\bin\\ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}" -map 0 -c:v hevc_nvenc -pix_fmt p010le -profile:v main10 -level 6.2 -tier high -preset p7 -tune hq -dn -codec:a copy -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
+    HD_CMD = 'c:\\ffmpeg\\bin\\ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}" -map 0 -c:v hevc_nvenc -pix_fmt p010le -profile:v main10 -level 6.2 -tier high -preset p7 -tune hq -dn -codec:a copy -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
+    FHD_CMD = 'c:\\ffmpeg\\bin\\ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}" -map 0 -c:v hevc_nvenc -pix_fmt p010le -profile:v main10 -level 6.2 -tier high -rc vbr -cq 28 -qmin 28 -qmax 28 -dn -codec:a aac -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
+    MUSTER_FFMCMD = f'''\
 [SD]
-cmd = ffmpeg -hide_banner -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset fast -profile:v main10 -pix_fmt p010le -crf 28 -b:v 0 -maxrate 2M -bufsize 4M -dn -c:a copy -c:s dvdsub -y "{AusgabeDatei}"
+cmd = {SD_CMD}
 
 [HD]
-cmd = ffmpeg -hide_banner -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset slow -profile:v main10 -pix_fmt p010le -crf 23 -b:v 0 -maxrate 3M -bufsize 6M -dn -c:a copy -c:s dvdsub -y "{AusgabeDatei}"
+cmd = {HD_CMD}
 
 [FullHD]
-cmd = ffmpeg -hide_banner -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset slow -profile:v main10 -pix_fmt p010le -crf 23 -b:v 0 -maxrate 4M -bufsize 8M -dn -c:a copy -c:s dvdsub -y "{AusgabeDatei}"
+cmd ={FHD_CMD}
+# alternative
+# fhd_cmd = c:\\ffmpeg\\bin\\ffmpeg -hide_banner {{canvassize}} -hwaccel auto -i "{{EingabeDatei}}" -map 0 -c:v hevc_nvenc -pix_fmt p010le -profile:v main10 -level 6.2 -tier high -preset p7 -tune hq -dn -codec:a aac -c:s dvdsub -y -f matroska "{{AusgabeDatei}}"
 '''
 
 class ffmpegcmd:
 
     def __init__(self):
-        head, tail = split(__file__)
-        root, ext = splitext(tail)
-        if head == "":
-            head = "."
-        self.initFile = head + "\\" + root + ".ini"
+        # head, tail = split(__file__)
+        # root, ext = splitext(tail)
+        # if head == "":
+        #     head = "."
         # print(head, tail, ext, self.initFile)
+
+        self.video = None
+        self.initFile = Konstanten.INIDATEI     # head + "\\" + root + ".ini"
         # init Command-String für das Transcodieren herstellen oder lesen
         pFile = Path(self.initFile)
         if not pFile.is_file():
         #     with open(self.initFile, "r") as iniFHdl:
         #         cmd = iniFHdl.read()
         # else: # sofort eine default-Ini-Datei mit default Eintrag erzeugen            
-            cmd = muster_ffcmd
+            cmd = Konstanten.MUSTER_FFMCMD
             with open(self.initFile, "w") as iniFHdl:
                 iniFHdl.write(cmd)
         
         # die aktuellen ffmpeg-Aufrufe merken
         config = configparser.ConfigParser()   
-        config.read(self.initFile)
-        self.cmd_SD =  config.get('SD', 'cmd', fallback='ffmpeg -hide_banner -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset fast -profile:v main10 -pix_fmt p010le -crf 28 -b:v 0 -maxrate 2M -bufsize 4M -dn -c:a copy -c:s dvdsub -y "{AusgabeDatei}"')        
-        self.cmd_HD =  config.get('HD', 'cmd', fallback='ffmpeg -hide_banner -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset slow -profile:v main10 -pix_fmt p010le -crf 23 -b:v 0 -maxrate 3M -bufsize 6M -dn -c:a copy -c:s dvdsub -y "{AusgabeDatei}"')
-        self.cmd_FullHD = config.get('FullHD', 'cmd', fallback='ffmpeg -hide_banner -hwaccel auto -i "{EingabeDatei}"  -map 0 -c:v hevc_nvenc -preset slow -profile:v main10 -pix_fmt p010le -crf 23 -b:v 0 -maxrate 4M -bufsize 8M -dn -c:a copy -c:s dvdsub -y "{AusgabeDatei}"')
+        # config.read(self.initFile)['HD']
+        
+        self.cmd_SD =  config.get('SD', 'cmd', fallback=Konstanten.SD_CMD)
+        self.cmd_HD =  config.get('HD', 'cmd', fallback=Konstanten.HD_CMD)
+        self.cmd_FullHD = config.get('FullHD', 'cmd', fallback=Konstanten.FHD_CMD)
+        self.usedIni = f"[SD]\n{self.cmd_SD}\n\n[HD]\n{self.cmd_HD}\n\n[FullHD]\n{self.cmd_FullHD}\n"
 
 
-    def ffXcodeCmd(self, ts_von, ts_nach, ts_weite, nurLog=False):
-        # veraltet: 
-        # das "&" stört unter Windows im Aufruf, es muss maskiert werden
-        # nach Tests überflüssig! rg
-        # von = ts_von.replace("&", "^&")
-        # nach = ts_nach.replace("&", "^&")
-        #        cmd = "cmd /C c:\\ffmpeg\\bin\\ffmpeg -i "
-        # -
-        # die Codierung der QuellDatei eimbauen
+    def ffXcodeCmd(self, ts_von, ts_nach, nurLog=False):
+        '''
+        montiert den ffmpeg Aufruf
+        Parameter:  ts_von: QuellVideo
+                    ts_nach: ZielVideo
+                    nurLog (opt.): wenn True, wird nur die benutzte Ini-Datei zurückgegeben (ohne Auflösung der Variablen)
+        Returns:    den montierten ffmpec Aufruf String
+        '''
         if nurLog:
             return "SD:  " + self.cmd_SD + "\nHD:  " + self.cmd_HD + "\nFullHD: " + self.cmd_FullHD
-        # zunächst die Codierung herausbekommen       
 
-        # codier, weite, hoehe = filmAlyser.get_encoding(ts_von)
+        aufrufDict = {'SD': self.cmd_SD, 'HD': self.cmd_HD, 'FullHD': self.cmd_FullHD, }
+
+        self.video = videoFile.videoFile(ts_von)
         
-        parm = "HD"     # default
-        try:
-            iWeite  = int(ts_weite)
-        except:
-            iWeite = 768
-
-        if iWeite < 1280:
-            parm = "SD"
-            cmd = self.cmd_SD
-        elif iWeite < 1920:
-            parm = "HD"
-            cmd = self.cmd_HD
+        if self.video.typ in ("SD", "HD", "FullHD"):
+            cmd = aufrufDict[self.video.typ]
         else:
-            parm = "FullHD"
-            cmd = self.cmd_FullHD
+            cmd = aufrufDict["HD"]  # default
 
-        # wietere Ersetzungen der cmd-Zeile
+        # weitere Ersetzungen der cmd-Zeile
         cmd = cmd.replace("{EingabeDatei}", ts_von)
         cmd = cmd.replace("{AusgabeDatei}", ts_nach)
         # BitRaten-Rechnerei (nach 2021-07-16 nicht mehr erforderlich)
         brs = "0"
         if cmd.find("{BitRate}") > 0:
-        #     bri = int(bitrate)
-        #     bri = int(round(bri / (1024*1024) + 0.5, 0))
-        #     if bri > 10:
-        #         brs = "5M"
-        #     elif bri > 6:
-        #         brs = "3M"
-        #     else:
-        #         brs = "0"
-            cmd = cmd.replace("{BitRate}", brs)      
-        return cmd
+            cmd = cmd.replace("{BitRate}", self.video.bitRate)
 
-def correct_illegal_chars(txt:"der zu prüfende String") -> str:
-    ''' 
-    Maskiert ein & durch ^&; unter win nötig, da cmd sonst falsch interpretiert
-    '''
-    try:
-        i = txt.index("&")        
-    except:
-        i = None
-    if i is not None:
-        if i > 0:
-            if txt[i-1] == "^":
-                pass            # & ist bereits 'escaped'
-            else:
-                txt = txt.replace("&", "^&")
-    return txt
+        cmd = cmd.replace("{canvassize}", f"-canvas_size {self.video.weite}x{self.video.hoehe}")
+
+        return cmd
+    
+
+
+# def correct_illegal_chars(txt="der zu prüfende String") -> str:
+#     ''' 
+#     Maskiert ein & durch ^&; unter win nötig, da cmd sonst falsch interpretiert
+#     '''
+#     try:
+#         i = txt.index("&")        
+#     except:
+#         i = None
+#     if i is not None:
+#         if i > 0:
+#             if txt[i-1] == "^":
+#                 pass            # & ist bereits 'escaped'
+#             else:
+#                 txt = txt.replace("&", "^&")
+#     return txt
      
 
 
 if __name__ == '__main__':
-    ff = ffmpegcmd()
-    # von  = "C:\\ts\\Deutschland,_24_Stunden.ts.done"
-    von  = "C:\\ts\\1001_Nacht_-_Der_Ruhelose_(1~3).ts"
-    nach = "E:\\Filme\\schnitt\\1001_Nacht_-_Der_Ruhelose_(1~3).mkv"
+    film = "Quo_vadis_(1951).ts"
+    von  = "C:\\ts\\" + film
+    nach = "E:\\Filme\\schnitt\\" + film + ".mkv"
 
+    if os.path.isfile(von):
+        video = videoFile.videoFile(von)
+    else:
+        exit(1)
+
+    ff = ffmpegcmd()
     cmd = ff.ffXcodeCmd(von, nach)
 
     print("Eingabe   : {0}".format(von))

@@ -247,7 +247,7 @@ QProgressBar::chunk {
         opt.textVisible = True
         opt.state |= QStyle.StateFlag.State_Horizontal
         QApplication.style().drawControl(QStyle.ControlElement.CE_ProgressBar, opt, painter)
-        #    QStyle.CE_ProgressBar, opt, painter)        
+        #    QStyle.ControlElement.CE_ProgressBar, opt, painter)        
 
 
 class XCodeApp(QMainWindow, XCodeUI2.Ui_MainWindow):
@@ -710,9 +710,6 @@ def format_size(flen: int):
 
 
 def main():
-
-    # probar1 bg-color #2196F3;;
-
     StyleSheet = '''
 QMainWindow {
     background-color: #fff5cc;

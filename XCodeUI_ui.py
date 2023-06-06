@@ -1,4 +1,4 @@
-# Form implementation generated from reading ui file 'XCodeUI.ui'
+# Form implementation generated from reading ui file 'd:\DEV\Py\XCode\XCodeUI.ui'
 #
 # Created by: PyQt6 UI code generator 6.4.0
 #
@@ -14,7 +14,7 @@ class Ui_MainWindow(object):
         MainWindow.setObjectName("MainWindow")
         MainWindow.resize(1280, 800)
         icon = QtGui.QIcon()
-        icon.addPixmap(QtGui.QPixmap("XC.ico"), QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off)
+        icon.addPixmap(QtGui.QPixmap("d:\\DEV\\Py\\XCode\\XC.ico"), QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off)
         MainWindow.setWindowIcon(icon)
         self.centralwidget = QtWidgets.QWidget(MainWindow)
         self.centralwidget.setObjectName("centralwidget")
@@ -169,13 +169,3 @@ class Ui_MainWindow(object):
         self.btn_start.setText(_translate("MainWindow", "Start"))
         self.lbl_version.setText(_translate("MainWindow", "Version 0.0 vom 00.00.2021"))
         self.lbl_frames.setText(_translate("MainWindow", "TextLabel"))
-
-
-if __name__ == "__main__":
-    import sys
-    app = QtWidgets.QApplication(sys.argv)
-    MainWindow = QtWidgets.QMainWindow()
-    ui = Ui_MainWindow()
-    ui.setupUi(MainWindow)
-    MainWindow.show()
-    sys.exit(app.exec())

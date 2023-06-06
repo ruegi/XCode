@@ -294,11 +294,12 @@ class mainApp(QMainWindow, transcodeWinUI.Ui_MainWindow):
         ausgabe = Konstanten.XCODEZIEL + self.video.name + ".mkv"
         self.cmd = self.cmd.replace("{AusgabeDatei}", ausgabe)
 
-        if "{canvassize}" in self.cmd:
-            if self.video.anzTextTracks > 0:
-                self.cmd = self.cmd.replace("{canvassize}", f"-canvas_size {self.video.weite}x{self.video.hoehe}")
-            else:
-                self.cmd = self.cmd.replace("{canvassize}", " ")
+        self.cmd = self.cmd.replace("{canvassize}", f"-canvas_size {self.video.weite}x{self.video.hoehe}")
+        # if "{canvassize}" in self.cmd:
+        #     if self.video.anzTextTracks > 0:
+        #         self.cmd = self.cmd.replace("{canvassize}", f"-canvas_size {self.video.weite}x{self.video.hoehe}")
+        #     else:
+        #         self.cmd = self.cmd.replace("{canvassize}", " ")
 
 
     def startjob(self):
