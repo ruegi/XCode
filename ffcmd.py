@@ -21,7 +21,7 @@ import os
 class Konstanten():
     FFMPEG = r'c:\ffmpeg\bin\ffmpeg.exe'
     ICON = 'XCode.ico'
-    INIDATEI = r'.\ffcmd.ini'
+    INIDATEI = 'ffcmd.ini'
     XCODEZIEL = 'E:\\Filme\\schnitt\\'
     LOGPATH = 'E:\\Filme\\log\\'
     SD_CMD = 'c:\\ffmpeg\\bin\\ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}" -map 0 -c:v hevc_nvenc -pix_fmt p010le -profile:v main10 -level 4.1 -tier high -preset p7 -tune hq -dn -codec:a copy -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
@@ -64,7 +64,7 @@ class ffmpegcmd:
 
         # die aktuellen ffmpeg-Aufrufe merken
         config = configparser.ConfigParser()
-        # config.read(self.initFile)['HD']
+        config.read(self.initFile)
 
         self.cmd_SD = config.get('SD', 'cmd', fallback=Konstanten.SD_CMD)
         self.cmd_HD = config.get('HD', 'cmd', fallback=Konstanten.HD_CMD)
