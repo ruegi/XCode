@@ -17,6 +17,7 @@ Versionen:
         um den dvdsub-Fehler 'canvas_size(0:0) is too small for render' zu beheben
 2.1-2.2 siehe XCode2
 2.3     Aufgehübscht, videoFile.py und ffcmd.py eingebaut, frame-Zeile separat
+2.4     Probleme in der Anzeige, die nach Umstellung auf AV1 enstatnden sind, wurden behoben 
 """
 from PyQt6.QtWidgets import (QMainWindow,
                              QTextEdit,
@@ -59,13 +60,14 @@ class Konstanten:                       # Konstanten des Programms
     QUELLE = "C:\\ts\\"
     ZIEL = "E:\\Filme\\schnitt\\"
     LOGPATH = "E:\\Filme\\log\\"
-    VERSION = "2.3"
-    VERSION_DAT = "2023-05-31"
+    VERSION = "2.4"
+    VERSION_DAT = "2023-07-04"
     normalFG = QBrush(QColor.fromString("Gray"))
     normalBG = QBrush(QColor.fromString("White"))
     highFG = QBrush(QColor.fromString("White"))
     highBG = QBrush(QColor.fromString("Chocolate"))
     OkFG = QBrush(QColor.fromString("Green"))
+    ffmpegLog = r".\ffmpegLog.txt"
 
 
 class ladeFenster(QWidget):
@@ -144,7 +146,7 @@ class jobControl():
     '''
     Diese Klasse beschreibt einen Tanscodier Job.
     alle Meldungen werden in einen Klassen-Lokalen Buffer geschrieben und bei JobEnde
-    in die Logdatei transferiert    
+    in die Logdatei transferiert
     '''
 
     def __init__(self, nr, appObj, tsObj):
@@ -221,6 +223,8 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.ff = ffcmd.ffmpegcmd()
         self.frameCount = 0
         self.lastFrameInfo = ""
+        self.saveTxt = ""       # für -onReadData
+        self.saveTxtAnz = 0     # für -onReadData
         self.process = None
         self.processkilled = False
         self.quelle = Konstanten.QUELLE
@@ -304,31 +308,183 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
 
     # Slots
     def onReadData(self):
+        # rame={wortDic['frame']}   fps={wortDic['fps']}   q={wortDic['q']}   size={wortDic['size']}   time={wortDic['time']}   bitrate={wortDic['bitrate']}   speed={wortDic['speed']}"
+        parmListe = ['frame=', 'fps=', 'q=',
+                     'size=', 'time=', 'bitrate=', 'speed=']
         txt = self.process.readAllStandardOutput().data().decode('cp850')
-        if txt.startswith("frame="):
-            # self.statusbar.showMessage("> " + txt)
-            self.lastFrameInfo = txt
-            self.lbl_frames.setText("> " + txt)
-            # frame=344874 fps=136 q=20.0 Lsize= 3003827kB time=01:54:59.46 bitrate=3566.6kbits/s speed=2.72x
-            data = txt.split("=")
-            txtAnzFr = data[1].strip().split(" ")
-            try:
-                anzFrames = int(txtAnzFr[0])
-            except:
-                anzFrames = 0
-            if anzFrames > self.frameCount:
-                anzFrames = self.frameCount
-            self.probar2.setValue(anzFrames)  # Anzeige der Position
+        # with open(Konstanten.ffmpegLog, "a") as flog:
+        #     flog.write(txt)
+        #     flog.write('§')
 
-            pro = int(anzFrames/self.frameCount*100)
-            row = self.tsliste.lastPos
-            itm = self.tbl_files.item(row, 4)
-            itm.setData(Qt.ItemDataRole.UserRole+1000, pro)
-            self.tsliste.lastObj.progress = pro
-            # print("txtAnzFr: ", txtAnzFr, " ,Frame:", anzFrames," von ", self.frameCount)
-        else:
+        # Gelegentliche Mehrzeiler wiedervereinen
+        # statt einer Static Var dienent hier die Klassen-Vars: self.saveTxt & self.saveTxtAnz
+        if txt.endswith("\n"):
             self.edit.append(txt)
             self.edit.moveCursor(QTextCursor.MoveOperation.End)
+            # return
+        elif self.saveTxtAnz > 5:
+            txtBuf = self.saveTxt + txt
+
+            zeilen = txtBuf.split("\r")
+            if zeilen[-1] == "":        # dann war saveTxt mit \r abgeschlossen
+                self.saveTxt = txt
+                self.saveTxtAnz = 1
+            else:                       # sonst zusammenfügen
+                self.saveTxt = zeilen[-1] + txt
+                self.saveTxtAnz = 2
+            # letzten Eintrag wegwerfen, er könnte unvollständig sein...
+            del zeilen[-1]
+            for zeile in zeilen:
+                # unvollständige Zeilen ausblenden
+                broken = False
+                for parm in parmListe:
+                    if not parm in zeile:
+                        broken = True
+                        continue
+                if broken:
+                    continue
+                #
+                if zeile.strip().startswith("frame="):
+                    wortDic = split_parms(zeile)
+                else:
+                    continue
+
+                if len(wortDic) == 7:
+                    frames = wortDic["frame"]
+                    if frames == "" or frames == '0':
+                        continue
+                    try:
+                        anzFrames = int(frames)
+                    except:
+                        # print(txt)
+                        # print(worte)
+                        anzFrames = 0
+                        continue
+                    if anzFrames > self.frameCount:
+                        anzFrames = self.frameCount
+                    # Anzeige der Position
+                    self.probar2.setValue(anzFrames)
+
+                    pro = int(anzFrames/self.frameCount*100)
+                    row = self.tsliste.lastPos
+                    itm = self.tbl_files.item(row, 4)
+                    itm.setData(Qt.ItemDataRole.UserRole+1000, pro)
+                    self.tsliste.lastObj.progress = pro
+                    # print("txtAnzFr: ", txtAnzFr, " ,Frame:", anzFrames," von ", self.frameCount)
+                    txt = f">  frame={wortDic['frame']}   fps={wortDic['fps']}   q={wortDic['q']}   size={wortDic['size']}   time={wortDic['time']}   bitrate={wortDic['bitrate']}   speed={wortDic['speed']}"
+                    self.lbl_frames.setText(txt)
+                    self.lastFrameInfo = txt
+                # end if len(wortDic) == 7
+            # end for zeile in zeilen
+        # elif self.saveTxtAnz > ...
+        else:
+            # einfach nur sammeln
+            if "\r" in txt:                         # txt.find("\r") > -1:
+                self.saveTxt += txt
+                self.saveTxtAnz += 1
+            else:
+                pass
+
+                # end if txt.endswith ...
+        return
+
+        '''                self.saveTxt = txt
+            else:
+                self.saveTxt += txt
+        if txt.endswith("\r"):
+            self.saveTxt += txt
+            if self.saveTxt.count("\r") > 5:
+                zeilen = self.saveTxt.split("\r")
+                for zeile in zeilen:
+                    wortDic = split_parms(zeile)
+                    if len(wortDic) == 7:
+                        if wortDic["frame"] == "":
+                            continue
+                        try:
+                            anzFrames = int(worte["frame"])
+                        except:
+                            # print(txt)
+                            # print(worte)
+                            anzFrames = 0
+                    # if anzFrames < 10:
+                    #     continue
+                        if anzFrames > self.frameCount:
+                            anzFrames = self.frameCount
+                        # Anzeige der Position
+                        self.probar2.setValue(anzFrames)
+
+                        pro = int(anzFrames/self.frameCount*100)
+                        row = self.tsliste.lastPos
+                        itm = self.tbl_files.item(row, 4)
+                        itm.setData(Qt.ItemDataRole.UserRole+1000, pro)
+                        self.tsliste.lastObj.progress = pro
+                        # print("txtAnzFr: ", txtAnzFr, " ,Frame:", anzFrames," von ", self.frameCount)
+                        txt = f">  frame={wortDic['frame']}   fps={wortDic['fps']}   q={wortDic['q']}   size={wortDic['size']}   time={wortDic['time']}   bitrate={wortDic['bitrate']}   speed={wortDic['speed']}"
+                        self.lbl_frames.setText(txt)
+                        self.lastFrameInfo = txt
+                        self.saveTxt = ""
+                    # end if len(wortDic) == 7
+                # end for
+            # end if self.saveTxt.count("\r") > 5:
+        # end if txt.endswith("\r"):
+
+        # if txt.startswith("frame="):
+        #     # if not txt[-1] == "\n":
+        #     #     # print(f"{txt=}")
+        #     #     # print("==> ohne CR/NL")
+        #     #     self.saveTxt = txt
+        #     #     return
+        #     # else:
+        #     #     self.saveTxt = ""
+        #     # self.statusbar.showMessage("> " + txt)
+        #     self.lastFrameInfo = txt
+        #     # frame=344874 fps=136 q=20.0 Lsize= 3003827kB time=01:54:59.46 bitrate=3566.6kbits/s speed=2.72x
+        #     zeilen = txt.split("\r")
+        #     for zeile in zeilen:
+        #         anzGleich = zeile.count("=")
+        #         if zeile.startswith("frame=") and anzGleich == 7:
+        #             worte = split_parms(txt)    # ein dict!
+        #     # wortAnz = len(worte)
+        #     # if wortAnz < 7:
+        #     #     print(f"Nur {wortAnz} Worte: {worte}")
+        #     # data = txt.split("=")
+        #     # txtAnzFr = data[1].strip().split(" ")
+        #     # try:
+        #     #     anzFrames = int(txtAnzFr[0])
+        #     # except:
+        #     #     anzFrames = 0
+        #             if worte["frame"] == "":
+        #                 continue
+        #             try:
+        #                 anzFrames = int(worte["frame"])
+        #             except:
+        #                 # print(txt)
+        #                 # print(worte)
+        #                 anzFrames = 0
+        #             if anzFrames < 10:
+        #                 continue
+        #             if anzFrames > self.frameCount:
+        #                 anzFrames = self.frameCount
+        #             self.probar2.setValue(anzFrames)  # Anzeige der Position
+
+        #             pro = int(anzFrames/self.frameCount*100)
+        #             row = self.tsliste.lastPos
+        #             itm = self.tbl_files.item(row, 4)
+        #             itm.setData(Qt.ItemDataRole.UserRole+1000, pro)
+        #             self.tsliste.lastObj.progress = pro
+        #             # print("txtAnzFr: ", txtAnzFr, " ,Frame:", anzFrames," von ", self.frameCount)
+        #             txt = f">  frame={worte['frame']}   fps={worte['fps']}   q={worte['q']}   size={worte['size']}   time={worte['time']}   bitrate={worte['bitrate']}   speed={worte['speed']}"
+        #             self.lbl_frames.setText(txt)
+        #             break
+        #         # end if zeile startswith ...
+        #     # end for zeilen
+        # else:
+        #     if txt.find("speed=") >= 0 or len(txt) < 10:
+        #         pass  # nicht anzeigen
+        #     else:
+        #         self.edit.append(txt)
+        #         self.edit.moveCursor(QTextCursor.MoveOperation.End)
+        '''
 
     def toggleX(self):
         # zunächst die aktuelle Zeile finden
@@ -603,6 +759,8 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
             QProcess.ProcessChannelMode.MergedChannels)
         self.process.readyReadStandardOutput.connect(self.onReadData)
         self.process.start(self.lastcmd)
+        with open(Konstanten.ffmpegLog, "w") as flog:
+            flog.write("")
 
     def progende(self):     # Ende Proc mit Nachfrage
         if self.running:
@@ -706,6 +864,41 @@ def format_size(flen: int):
         return ' 0 bytes'
 
 
+def split_parms(parmStr: str) -> dict:
+    '''
+        Zerlegt einen String der Form:
+        "frame=344874 fps=136 q=20.0 Lsize= 3003827kB time=01:54:59.46 bitrate=3566.6kbits/s speed=2.72x"
+        in ein Dict, d.h. eine Liste, in der der ParmName der Index ist und der Wert hinter dem "=" der Wert ist
+        Das Problem waren die evtl. führenden Blanks der Werte-Angaben, wie hier bei 'Lsize'
+    '''
+    retDict = dict()
+    worte = parmStr.split(" ")
+    # print(f"{worte =}")
+    altParm = ""
+    altParmLeer = False
+    i = 0
+    for wort in worte:
+        if wort == "":
+            continue
+        aktw = wort.split("=")
+        if wort.endswith("="):   # der parm fehlt
+            altParm = aktw[0]
+            altParmLeer = True
+            continue
+        elif altParmLeer:   # dann muss der wert folgen
+            retDict[altParm] = aktw[0].strip()
+            altParmLeer = False
+        else:   # 'Name=Wert' Typ
+            if len(aktw) < 2:
+                print("Unpassender String!!")
+                print(f"{worte =}")
+                print(f"{aktw =} {altParm =}")
+                continue
+            retDict[aktw[0]] = aktw[1].strip()
+            altParmLeer = False
+    return retDict
+
+
 def main():
 
     StyleSheet = '''
@@ -742,7 +935,7 @@ QPushButton {
         border-style: outset;
         border-width: 1px;
         border-radius: 5px;
-        border-color: black;        
+        border-color: black;
         padding: 3px;
     }
 
@@ -785,7 +978,7 @@ QTextEdit {
     color: Black;
     background-color: Gainsboro;
     border: 1px solid Chocolate;
-    border-radius: 5px;    
+    border-radius: 5px;
 }
 '''
 
@@ -834,4 +1027,8 @@ QTextEdit {
 
 
 if __name__ == '__main__':        # if we're running file directly and not importing it
+    # print(split_parms(
+    #     'frame=  152 fps= 61 q=27.0 size=       2kB time=00:00:05.63 bitrate=   2.4kbits/s speed=2.26x    '
+    # ))
+    # "frame=344874 fps=136 q=20.0 Lsize= 3003827kB time=01:54:59.46 bitrate=3566.6kbits/s speed=2.72x"
     main()                        # run the main function
