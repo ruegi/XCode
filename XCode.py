@@ -60,8 +60,8 @@ class Konstanten:                       # Konstanten des Programms
     QUELLE = "C:\\ts\\"
     ZIEL = "E:\\Filme\\schnitt\\"
     LOGPATH = "E:\\Filme\\log\\"
-    VERSION = "2.4"
-    VERSION_DAT = "2023-07-04"
+    VERSION = "2.5"
+    VERSION_DAT = "2023-07-16"
     normalFG = QBrush(QColor.fromString("Gray"))
     normalBG = QBrush(QColor.fromString("White"))
     highFG = QBrush(QColor.fromString("White"))
@@ -119,7 +119,7 @@ class tsEintrag:
 
     def toggleXObj(self):
         if self.status == "OK" or self.status == "Fehler" or self.status == "in Arbeit":
-            print("keine Änderung")
+            # print("keine Änderung")
             return   # keine Änderung, da bereits abgearbeitet
 
         if self.X == "X":
@@ -129,60 +129,6 @@ class tsEintrag:
             self.X = "X"
             self.status = "warten..."
         return
-# (self):
-#         if self.status == "OK":
-#             return   # keine Änderung, da bereits fertig
-
-#         if self.X == "X":
-#             self.X = ""
-#             self.status = "-skip-"
-#         else:
-#             self.X = "X"
-#             self.status = "warten..."
-#         return
-
-
-class jobControl():
-    '''
-    Diese Klasse beschreibt einen Tanscodier Job.
-    alle Meldungen werden in einen Klassen-Lokalen Buffer geschrieben und bei JobEnde
-    in die Logdatei transferiert
-    '''
-
-    def __init__(self, nr, appObj, tsObj):
-        self.nr = nr
-        self.appObj = appObj
-        self.tsObj = tsObj
-        self.running = False
-        self.start_time = 0
-        self.end_time = 0
-        self.log_buffer = ""
-
-    def onReadData(self):
-        txt = self.process.readAllStandardOutput().data().decode('cp850')
-        if txt.startswith("frame="):
-            self.statusbar.showMessage("> " + txt)
-            # frame=344874 fps=136 q=20.0 Lsize= 3003827kB time=01:54:59.46 bitrate=3566.6kbits/s speed=2.72x
-            data = txt.split("=")
-            txtAnzFr = data[1].strip().split(" ")
-            try:
-                anzFrames = int(txtAnzFr[0])
-            except:
-                anzFrames = 0
-            if anzFrames > self.frameCount:
-                anzFrames = self.frameCount
-            self.probar2.setValue(anzFrames)  # Anzeige der Position
-            # nur noch eigenen PorBar in der Tabelle versorgen
-            pro = int(anzFrames/self.frameCount*100)
-            row = self.tsliste.lastPos
-            itm = self.appObj.tbl_files.item(row, 4)
-            itm.setData(Qt.ItemDataRole.UserRole+1000, pro)
-            self.appObj.tsliste.lastObj.progress = pro
-            # print("txtAnzFr: ", txtAnzFr, " ,Frame:", anzFrames," von ", self.frameCount)
-        else:
-            # pass
-            self.edit.append(txt)
-            self.edit.moveCursor(QTextCursor.End)
 
 
 class ProgressDelegate(QStyledItemDelegate):
@@ -212,6 +158,50 @@ class ProgressDelegate(QStyledItemDelegate):
         QApplication.style().drawControl(QStyle.ControlElement.CE_ProgressBar, opt, painter)
 
 
+class Fortschritt():
+    # Klasse, um die Statistik einer Konvertierung aufzufangen
+    # Die Funkion 'fortschritt_speichern' gibt zurück:
+    #   - True:  wenn der letzte Posten 'progress' erkannt wurde
+    #   - False: wenn gespeichert wurde, aber nicht 'progress' erschien
+    #   - None:  wenn irgend etwas unverdauliches auftauchte
+
+    parmListe = ['frame', 'fps', 'stream_0_0_q', 'bitrate', 'total_size', 'out_time_us',
+                 'out_time_ms', 'out_time', 'dup_frames', 'drop_frames', 'speed', 'progress']
+
+    def __init__(self):
+        self.pwDic = dict()
+        for parm in self.parmListe:
+            self.pwDic[parm] = ""
+
+    def fortschritt_speichern(self, zeile):
+        ''' speichert ein "NAME=WERT" Paar ab '''
+        if not "=" in zeile:
+            return None
+
+        pwListe = zeile.split("=")
+        if not len(pwListe) == 2:
+            return None
+
+        parm, wert = pwListe
+        if parm in self.parmListe:
+            self.pwDic[parm] = wert
+
+        if parm == "progress":  # explicit is better than implicit
+            return True
+        else:
+            return False
+
+    def getParm(self, parm):
+        if parm not in self.parmListe:
+            return None
+        else:
+            return self.pwDic[parm]
+
+    def fortschritt_fomatieren(self):
+        txt = f">  frame={self.pwDic['frame']}   fps={self.pwDic['fps']}   q={self.pwDic['stream_0_0_q']}   size={self.pwDic['total_size']}   time={self.pwDic['out_time']}   bitrate={self.pwDic['bitrate']}   speed={self.pwDic['speed']}"
+        return txt
+
+
 class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
     def __init__(self):
         super(self.__class__, self).__init__()
@@ -225,8 +215,11 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.lastFrameInfo = ""
         self.saveTxt = ""       # für -onReadData
         self.saveTxtAnz = 0     # für -onReadData
+        self.fortschritt = None  # hält das Fortschritt Objekt des aktuell codierten Film
+        self.logProgress = True     # 4 debug
         self.process = None
         self.processkilled = False
+        self.currentX = True    # Zustamd der X-Spalte; True=alle aktiviert
         self.quelle = Konstanten.QUELLE
         self.ziel = Konstanten.ZIEL
         self.logpath = Konstanten.LOGPATH
@@ -260,20 +253,13 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        # header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
-        # header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
         self.tbl_files.setAlternatingRowColors(True)
+        header.setSectionsClickable(True)      # 4 toggle X
 
         self.lbl_version.setText(
             "XCode Version " + Konstanten.VERSION + " vom " + Konstanten.VERSION_DAT)
         self.lbl_frames.setText("")
 
-        # self.edit.setTextColor(QColor("White"))
-        # cName = "darkCyan"
-        # self.edit.setTextBackgroundColor (QColor(cName))
-        # self.edit.setStyleSheet(f"background-color: {cName};")
-        # self.edit.width = 400
-        # self.edit.setAcceptRichText(True)
         self.edit.setWindowTitle("Prozess-Ausgabe")
         self.edit.setText("Benutzte ffcmd.ini:\n\n" + self.ff.usedIni)
 
@@ -285,6 +271,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.btn_ende.clicked.connect(self.progende)
         self.btn_start.clicked.connect(self.convert)
         self.tbl_files.doubleClicked.connect(self.toggleX)
+        header.sectionDoubleClicked.connect(self.toggleAllX)
 
         # Abschluss Init; laden der Daten
         self.dt = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -306,190 +293,137 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.statusbar.showMessage(
             "{0} Dateien geladen!".format(self.tsliste.size))
 
-    # Slots
     def onReadData(self):
-        # rame={wortDic['frame']}   fps={wortDic['fps']}   q={wortDic['q']}   size={wortDic['size']}   time={wortDic['time']}   bitrate={wortDic['bitrate']}   speed={wortDic['speed']}"
-        parmListe = ['frame=', 'fps=', 'q=',
-                     'size=', 'time=', 'bitrate=', 'speed=']
+        '''fängt die Meldungen von ffmpeg ab und bringt sie passen zur anzeige'''
+        #
+        # -- seqAusgabe.txt
+        # frame=0
+        # fps=0.00
+        # stream_0_0_q=0.0
+        # bitrate=   0.0kbits/s
+        # total_size=0
+        # out_time_us=83438
+        # out_time_ms=83438
+        # out_time=00:00:00.083438
+        # dup_frames=0
+        # drop_frames=0
+        # speed=0.277x
+        # progress=continue
+        # ...
+        # frame=130183
+        # fps=116.69
+        # stream_0_0_q=22.0
+        # bitrate=1129.7kbits/s
+        # total_size=735357590
+        # out_time_us=5207520000
+        # out_time_ms=5207520000
+        # out_time=01:26:47.520000
+        # dup_frames=0
+        # drop_frames=4
+        # speed=4.67x
+        # progress=end
+
+        parmListe = ['frame', 'fps', 'stream_0_0_q', 'bitrate', 'total_size', 'out_time_us',
+                     'out_time_ms', 'out_time', 'dup_frames', 'drop_frames', 'speed', 'progress']
         txt = self.process.readAllStandardOutput().data().decode('cp850')
-        # with open(Konstanten.ffmpegLog, "a") as flog:
-        #     flog.write(txt)
-        #     flog.write('§')
 
-        # Gelegentliche Mehrzeiler wiedervereinen
-        # statt einer Static Var dienent hier die Klassen-Vars: self.saveTxt & self.saveTxtAnz
-        if txt.endswith("\n"):
-            self.edit.append(txt)
-            self.edit.moveCursor(QTextCursor.MoveOperation.End)
-            # return
-        elif self.saveTxtAnz > 5:
-            txtBuf = self.saveTxt + txt
+        if self.logProgress:
+            # jeder Block wird mit einem §\n abgeschlossen, jedes \r wird durch $ sichtbar gemacht
+            with open(Konstanten.ffmpegLog, "a") as flog:
+                flog.write(txt.replace("\r", "$"))
+                flog.write('§\n')
 
-            zeilen = txtBuf.split("\r")
-            if zeilen[-1] == "":        # dann war saveTxt mit \r abgeschlossen
-                self.saveTxt = txt
-                self.saveTxtAnz = 1
-            else:                       # sonst zusammenfügen
-                self.saveTxt = zeilen[-1] + txt
-                self.saveTxtAnz = 2
-            # letzten Eintrag wegwerfen, er könnte unvollständig sein...
-            del zeilen[-1]
-            for zeile in zeilen:
-                # unvollständige Zeilen ausblenden
-                broken = False
-                for parm in parmListe:
-                    if not parm in zeile:
-                        broken = True
-                        continue
-                if broken:
-                    continue
-                #
-                if zeile.strip().startswith("frame="):
-                    wortDic = split_parms(zeile)
+        zeilen = txt.split("\n")
+        # wenn einem Progress-Block von ffmpeg eine statitic-Zeile mit abschließendem '\r' vorausgeht, muss
+        # diese
+        for zeile in zeilen:
+            erg = None
+            if len(zeile) > 20:
+                while "\r" in zeile:
+                    rPos = zeile.find("\r")
+                    zeile = zeile[(rPos+1):]
+                    if zeile.startswith("frame="):
+                        print(f"{zeile=}")
+                        break
                 else:
                     continue
 
-                if len(wortDic) == 7:
-                    frames = wortDic["frame"]
-                    if frames == "" or frames == '0':
-                        continue
-                    try:
-                        anzFrames = int(frames)
-                    except:
-                        # print(txt)
-                        # print(worte)
-                        anzFrames = 0
-                        continue
-                    if anzFrames > self.frameCount:
-                        anzFrames = self.frameCount
-                    # Anzeige der Position
-                    self.probar2.setValue(anzFrames)
-
-                    pro = int(anzFrames/self.frameCount*100)
-                    row = self.tsliste.lastPos
-                    itm = self.tbl_files.item(row, 4)
-                    itm.setData(Qt.ItemDataRole.UserRole+1000, pro)
-                    self.tsliste.lastObj.progress = pro
-                    # print("txtAnzFr: ", txtAnzFr, " ,Frame:", anzFrames," von ", self.frameCount)
-                    txt = f">  frame={wortDic['frame']}   fps={wortDic['fps']}   q={wortDic['q']}   size={wortDic['size']}   time={wortDic['time']}   bitrate={wortDic['bitrate']}   speed={wortDic['speed']}"
-                    self.lbl_frames.setText(txt)
-                    self.lastFrameInfo = txt
-                # end if len(wortDic) == 7
-            # end for zeile in zeilen
-        # elif self.saveTxtAnz > ...
-        else:
-            # einfach nur sammeln
-            if "\r" in txt:                         # txt.find("\r") > -1:
-                self.saveTxt += txt
-                self.saveTxtAnz += 1
-            else:
-                pass
-
-                # end if txt.endswith ...
+            if len(zeile) == 0:
+                continue
+            pos = zeile.find("=")
+            if pos > -1:
+                p = zeile[:pos]
+                # print(f"{p =}, {pos =}, {zeile =}")
+                if p in parmListe:
+                    # ggf. einen wirren rest abschneiden
+                    if p == "frame":
+                        # eine leerstelle nach dem wert, wie bei 'zeile ='frame= 1208 fps=594 q=29.0 size=   12288kB'
+                        if (leer := zeile.find(" ", 11)) > -1:
+                            zeile = zeile[:leer]
+                            # print(f"HIT {zeile =}; {leer =}; {pos=}")
+                    # print(f"{zeile=}")
+                    erg = self.fortschritt.fortschritt_speichern(zeile)
+                    # print(f"{p =} in parmListe, {erg =}")
+                else:
+                    # print(f"{p =} NICHT in parmListe, {erg =}")
+                    pass
+                if erg == True:
+                    self.anzeigeFortschritt()
+            else:   # kein = gefunden
+                if zeile > "":
+                    edt = self.edit.toPlainText()
+                    self.edit.setText(edt + txt)
+                    self.edit.moveCursor(QTextCursor.MoveOperation.End)
         return
 
-        '''                self.saveTxt = txt
+    def anzeigeFortschritt(self):
+        try:
+            anzFrames = int(self.fortschritt.getParm("frame"))
+        except:
+            anzFrames = None
+            return
+        if anzFrames > self.frameCount:
+            anzFrames = self.frameCount
+        proD = anzFrames/self.frameCount
+        proI = int(proD*100)
+
+        # Anzeige der Position
+        self.probar2.setValue(anzFrames)
+        pb1wert = self.pbarpos + proD*self.incr
+        self.probar1.setValue(round(pb1wert))
+
+        row = self.tsliste.lastPos
+        itm = self.tbl_files.item(row, 4)
+        itm.setData(Qt.ItemDataRole.UserRole+1000, proI)
+        self.tsliste.lastObj.progress = proI
+        txt = self.fortschritt.fortschritt_fomatieren()
+        self.lbl_frames.setText(txt)
+        self.lastFrameInfo = txt
+
+    def toggleAllX(self, index):
+        ''' schaltet alle X an oder aus '''
+        if index != 1:
+            return
+        # header = self.tbl_files.horizontalHeader()
+        # if not header.sectionDoubleClicked(1):
+        #     # if not idx == 1:
+        #     return
+        for row in range(self.tsliste.size):
+            Datei = self.tsliste.getRow(row)
+            if Datei is None:
+                return
             else:
-                self.saveTxt += txt
-        if txt.endswith("\r"):
-            self.saveTxt += txt
-            if self.saveTxt.count("\r") > 5:
-                zeilen = self.saveTxt.split("\r")
-                for zeile in zeilen:
-                    wortDic = split_parms(zeile)
-                    if len(wortDic) == 7:
-                        if wortDic["frame"] == "":
-                            continue
-                        try:
-                            anzFrames = int(worte["frame"])
-                        except:
-                            # print(txt)
-                            # print(worte)
-                            anzFrames = 0
-                    # if anzFrames < 10:
-                    #     continue
-                        if anzFrames > self.frameCount:
-                            anzFrames = self.frameCount
-                        # Anzeige der Position
-                        self.probar2.setValue(anzFrames)
-
-                        pro = int(anzFrames/self.frameCount*100)
-                        row = self.tsliste.lastPos
-                        itm = self.tbl_files.item(row, 4)
-                        itm.setData(Qt.ItemDataRole.UserRole+1000, pro)
-                        self.tsliste.lastObj.progress = pro
-                        # print("txtAnzFr: ", txtAnzFr, " ,Frame:", anzFrames," von ", self.frameCount)
-                        txt = f">  frame={wortDic['frame']}   fps={wortDic['fps']}   q={wortDic['q']}   size={wortDic['size']}   time={wortDic['time']}   bitrate={wortDic['bitrate']}   speed={wortDic['speed']}"
-                        self.lbl_frames.setText(txt)
-                        self.lastFrameInfo = txt
-                        self.saveTxt = ""
-                    # end if len(wortDic) == 7
-                # end for
-            # end if self.saveTxt.count("\r") > 5:
-        # end if txt.endswith("\r"):
-
-        # if txt.startswith("frame="):
-        #     # if not txt[-1] == "\n":
-        #     #     # print(f"{txt=}")
-        #     #     # print("==> ohne CR/NL")
-        #     #     self.saveTxt = txt
-        #     #     return
-        #     # else:
-        #     #     self.saveTxt = ""
-        #     # self.statusbar.showMessage("> " + txt)
-        #     self.lastFrameInfo = txt
-        #     # frame=344874 fps=136 q=20.0 Lsize= 3003827kB time=01:54:59.46 bitrate=3566.6kbits/s speed=2.72x
-        #     zeilen = txt.split("\r")
-        #     for zeile in zeilen:
-        #         anzGleich = zeile.count("=")
-        #         if zeile.startswith("frame=") and anzGleich == 7:
-        #             worte = split_parms(txt)    # ein dict!
-        #     # wortAnz = len(worte)
-        #     # if wortAnz < 7:
-        #     #     print(f"Nur {wortAnz} Worte: {worte}")
-        #     # data = txt.split("=")
-        #     # txtAnzFr = data[1].strip().split(" ")
-        #     # try:
-        #     #     anzFrames = int(txtAnzFr[0])
-        #     # except:
-        #     #     anzFrames = 0
-        #             if worte["frame"] == "":
-        #                 continue
-        #             try:
-        #                 anzFrames = int(worte["frame"])
-        #             except:
-        #                 # print(txt)
-        #                 # print(worte)
-        #                 anzFrames = 0
-        #             if anzFrames < 10:
-        #                 continue
-        #             if anzFrames > self.frameCount:
-        #                 anzFrames = self.frameCount
-        #             self.probar2.setValue(anzFrames)  # Anzeige der Position
-
-        #             pro = int(anzFrames/self.frameCount*100)
-        #             row = self.tsliste.lastPos
-        #             itm = self.tbl_files.item(row, 4)
-        #             itm.setData(Qt.ItemDataRole.UserRole+1000, pro)
-        #             self.tsliste.lastObj.progress = pro
-        #             # print("txtAnzFr: ", txtAnzFr, " ,Frame:", anzFrames," von ", self.frameCount)
-        #             txt = f">  frame={worte['frame']}   fps={worte['fps']}   q={worte['q']}   size={worte['size']}   time={worte['time']}   bitrate={worte['bitrate']}   speed={worte['speed']}"
-        #             self.lbl_frames.setText(txt)
-        #             break
-        #         # end if zeile startswith ...
-        #     # end for zeilen
-        # else:
-        #     if txt.find("speed=") >= 0 or len(txt) < 10:
-        #         pass  # nicht anzeigen
-        #     else:
-        #         self.edit.append(txt)
-        #         self.edit.moveCursor(QTextCursor.MoveOperation.End)
-        '''
+                Datei.toggleXObj()
+                self.refreshTableRow(row)    # kein Neuaufbau
+                self.tbl_files.selectRow(row)
+        return
 
     def toggleX(self):
+        ''' schaltet das X einer einzigen Zeile um '''
         # zunächst die aktuelle Zeile finden
         idx = self.tbl_files.selectedIndexes()[0]
         row = idx.row()
+        # print(f"{idx=}")
         Datei = self.tsliste.getRow(row)
         if Datei is None:
             return
@@ -563,6 +497,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.edit.setText(" ")
         self.refreshTable(False)
         self.process = None
+
         self.probar2.setRange(0, 1)  # stoppt hin-her
         self.probar2.setValue(0)  # ende der Anzeige
 
@@ -576,6 +511,8 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         itm = self.tbl_files.item(row, 4)
         itm.setData(Qt.ItemDataRole.UserRole+1000, 100)
         self.tsliste.lastObj.progress = 100
+        self.pbarpos += self.incr
+        self.probar1.setValue(round(self.pbarpos))
 
         # neuen Satz aussuchen
         if self.tsliste.findNext() is None:
@@ -716,7 +653,6 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
             return
 
         # GUI anpassen
-        self.pbarpos += self.incr
         self.probar1.setValue(round(self.pbarpos))
         self.btn_start.setEnabled(False)
 
@@ -736,6 +672,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         # cmd montieren
         self.lastcmd = self.ff.ffXcodeCmd(self.ts_von, self.ts_nach)
         self.frameCount = Datei.video.frameCount
+        self.fortschritt = Fortschritt()
         self.log.log("ffmpeg Aufruf: {0}".format(self.lastcmd))
         self.statusbar.showMessage(
             "Umwandlung {0} -> {1}".format(self.ts_von, self.ts_nach))
@@ -759,22 +696,33 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
             QProcess.ProcessChannelMode.MergedChannels)
         self.process.readyReadStandardOutput.connect(self.onReadData)
         self.process.start(self.lastcmd)
-        with open(Konstanten.ffmpegLog, "w") as flog:
-            flog.write("")
+        if self.logProgress:
+            with open(Konstanten.ffmpegLog, "a") as flog:
+                flog.write(
+                    f"\n---------- [{self.ts_von}] ------------------------------------\n")
 
     def progende(self):     # Ende Proc mit Nachfrage
         if self.running:
-            reply = QMessageBox.question(self, "Nachfrage",
-                                         "Ablauf abbrechen?\nDas wird nach dem Ende der aktuellen Konvertierung geschehen!",
-                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                                         QMessageBox.StandardButton.No)
+            if self.stopNext:
+                self.processkilled = True
+                self.close()
+            else:
+                reply = QMessageBox.question(self, "Nachfrage",
+                                             "Ablauf abbrechen?\nDas wird nach dem Ende der aktuellen Konvertierung geschehen!\nCANCEL bewrirkt den sofortigen Abbruch!!",
+                                             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel,
+                                             QMessageBox.StandardButton.No)
 
-            if reply == QMessageBox.StandardButton.Yes:
-                self.stopNext = True
-                self.statusbar.showMessage(
-                    "Die Konverierung endet nach dem aktuellen Prozess!")
-                self.btn_ende.setText("Abbruch angefordert!")
-                self.btn_ende.setDisabled(True)
+                if reply == QMessageBox.StandardButton.Yes:
+                    self.stopNext = True
+                    self.statusbar.showMessage(
+                        "Die Konverierung endet nach dem aktuellen Prozess!")
+                    self.btn_ende.setText("Sofort beenden")
+                    self.btn_ende.setDisabled(False)
+                elif reply == QMessageBox.StandardButton.Cancel:
+                    self.processkilled = True
+                    self.close()
+                else:
+                    pass    # nix abzubrechen
         else:
             self.ende_verarbeitung()
 

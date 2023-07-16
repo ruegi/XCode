@@ -104,6 +104,12 @@ class ffmpegcmd:
         cmd = cmd.replace(
             "{canvassize}", f"-canvas_size {self.video.weite}x{self.video.hoehe}")
 
+        # zum schluss noch den Prpgress einbauen
+        pos = cmd.find(" -i ")
+        p1 = cmd[0:pos]
+        p2 = cmd[pos:]
+        cmd = p1 + " -progress pipe:1 " + p2
+        # print(f"{cmd =}")
         return cmd
 
 
