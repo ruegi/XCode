@@ -216,7 +216,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.saveTxt = ""       # für -onReadData
         self.saveTxtAnz = 0     # für -onReadData
         self.fortschritt = None  # hält das Fortschritt Objekt des aktuell codierten Film
-        self.logProgress = True     # 4 debug
+        self.logProgress = False     # 4 debug
         self.process = None
         self.processkilled = False
         self.currentX = True    # Zustamd der X-Spalte; True=alle aktiviert
