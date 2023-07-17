@@ -17,7 +17,9 @@ Versionen:
         um den dvdsub-Fehler 'canvas_size(0:0) is too small for render' zu beheben
 2.1-2.2 siehe XCode2
 2.3     Aufgehübscht, videoFile.py und ffcmd.py eingebaut, frame-Zeile separat
-2.4     Probleme in der Anzeige, die nach Umstellung auf AV1 enstatnden sind, wurden behoben 
+2.4     Probleme in der Anzeige, die nach Umstellung auf AV1 enstanden sind, wurden behoben 
+2.5     Weiterarbeit an den Anzeigeproblemen; kompatibilität der Ausgaben von hevc und av1 Encodern hergestellt
+2.51    progress-Logging abgeschaltet und nach c:\temp verschoben
 """
 from PyQt6.QtWidgets import (QMainWindow,
                              QTextEdit,
@@ -60,14 +62,14 @@ class Konstanten:                       # Konstanten des Programms
     QUELLE = "C:\\ts\\"
     ZIEL = "E:\\Filme\\schnitt\\"
     LOGPATH = "E:\\Filme\\log\\"
-    VERSION = "2.5"
-    VERSION_DAT = "2023-07-16"
+    VERSION = "2.51"
+    VERSION_DAT = "2023-07-17"
     normalFG = QBrush(QColor.fromString("Gray"))
     normalBG = QBrush(QColor.fromString("White"))
     highFG = QBrush(QColor.fromString("White"))
     highBG = QBrush(QColor.fromString("Chocolate"))
     OkFG = QBrush(QColor.fromString("Green"))
-    ffmpegLog = r".\ffmpegLog.txt"
+    ffmpegLog = r"C:\temp\ffmpegLog.txt"
 
 
 class ladeFenster(QWidget):
@@ -216,7 +218,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.saveTxt = ""       # für -onReadData
         self.saveTxtAnz = 0     # für -onReadData
         self.fortschritt = None  # hält das Fortschritt Objekt des aktuell codierten Film
-        self.logProgress = False     # 4 debug
+        self.logProgress = True     # 4 debug
         self.process = None
         self.processkilled = False
         self.currentX = True    # Zustamd der X-Spalte; True=alle aktiviert
@@ -338,7 +340,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         # diese
         for zeile in zeilen:
             erg = None
-            if len(zeile) > 20:
+            if len(zeile) > 25:
                 while "\r" in zeile:
                     rPos = zeile.find("\r")
                     zeile = zeile[(rPos+1):]
@@ -699,7 +701,10 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         if self.logProgress:
             with open(Konstanten.ffmpegLog, "a") as flog:
                 flog.write(
-                    f"\n---------- [{self.ts_von}] ------------------------------------\n")
+                    f"\n---------- [{self.ts_von}] ------------------------------------\n" +
+                    "Das Ende eines eingelesenen Blocks wird mit '§\n' gekennzeichnet," +
+                    "Ein '\r' wird mit '$' markiert" +
+                    "-"*80)
 
     def progende(self):     # Ende Proc mit Nachfrage
         if self.running:
@@ -708,7 +713,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
                 self.close()
             else:
                 reply = QMessageBox.question(self, "Nachfrage",
-                                             "Ablauf abbrechen?\nDas wird nach dem Ende der aktuellen Konvertierung geschehen!\nCANCEL bewrirkt den sofortigen Abbruch!!",
+                                             "Ablauf abbrechen?\n\nJa = Das wird nach dem Ende der aktuellen Konvertierung geschehen!\n\nNein = weitermachen\n\nCANCEL = sofortiger harter Abbruch!!",
                                              QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel,
                                              QMessageBox.StandardButton.No)
 
@@ -720,7 +725,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
                     self.btn_ende.setDisabled(False)
                 elif reply == QMessageBox.StandardButton.Cancel:
                     self.processkilled = True
-                    self.close()
+                    self.ende_verarbeitung()
                 else:
                     pass    # nix abzubrechen
         else:
@@ -736,7 +741,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         else:
             if self.processkilled:
                 self.process.kill()
-                self.process.waitForFinished(5000)
+                self.process.waitForFinished(10000)
                 if os.path.isfile(self.ts_nach):  # die defekte Datei löschen
                     try:  # versuchen, die kaputte *.mkv"-datei zu löschen
                         os.remove(self.ts_nach)
