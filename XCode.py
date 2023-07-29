@@ -20,6 +20,7 @@ Versionen:
 2.4     Probleme in der Anzeige, die nach Umstellung auf AV1 enstanden sind, wurden behoben 
 2.5     Weiterarbeit an den Anzeigeproblemen; kompatibilität der Ausgaben von hevc und av1 Encodern hergestellt
 2.51    progress-Logging abgeschaltet und nach c:\temp verschoben
+2.6     Bessere Darstellung um edit-Widget
 """
 from PyQt6.QtWidgets import (QMainWindow,
                              QTextEdit,
@@ -62,8 +63,8 @@ class Konstanten:                       # Konstanten des Programms
     QUELLE = "C:\\ts\\"
     ZIEL = "E:\\Filme\\schnitt\\"
     LOGPATH = "E:\\Filme\\log\\"
-    VERSION = "2.51"
-    VERSION_DAT = "2023-07-17"
+    VERSION = "2.6"
+    VERSION_DAT = "2023-07-28"
     normalFG = QBrush(QColor.fromString("Gray"))
     normalBG = QBrush(QColor.fromString("White"))
     highFG = QBrush(QColor.fromString("White"))
@@ -263,7 +264,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.lbl_frames.setText("")
 
         self.edit.setWindowTitle("Prozess-Ausgabe")
-        self.edit.setText("Benutzte ffcmd.ini:\n\n" + self.ff.usedIni)
+        self.edit.setText("Benutzte ffcmd.ini:\n\n" + self.ff.usedIni + "\n\n")
 
         self.led_pfad.setDisabled(True)
         self.probar1.setValue(0)
@@ -336,24 +337,31 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
                 flog.write('§\n')
 
         zeilen = txt.split("\n")
-        # wenn einem Progress-Block von ffmpeg eine statitic-Zeile mit abschließendem '\r' vorausgeht, muss
-        # diese
         for zeile in zeilen:
-            erg = None
-            if len(zeile) > 25:
-                while "\r" in zeile:
-                    rPos = zeile.find("\r")
-                    zeile = zeile[(rPos+1):]
-                    if zeile.startswith("frame="):
-                        print(f"{zeile=}")
-                        break
-                else:
-                    continue
-
-            if len(zeile) == 0:
-                continue
             pos = zeile.find("=")
-            if pos > -1:
+            erg = None
+            if (len(zeile) < 25) and (pos > 0):
+                # frpos = zeile.find("frame=")
+                # if frpos > -1:
+                #     z1 = zeile[0:frpos]
+                #     self.infoZeilenAusgeben(z1)
+                #     zeile = zeile[frpos:]
+                # erg = None
+                # if len(zeile) > 25:
+                #     while "\r" in zeile:
+                #         rPos = zeile.find("\r")
+                #         zeile = zeile[(rPos+1):]
+                #         if zeile.startswith("frame="):
+                #             # print(f"{zeile=}")
+                #             break
+                #         else:
+                #             self.infoZeilenAusgeben(zeile)
+                #             continue
+
+                # if len(zeile) == 0:
+                #     continue
+                # pos = zeile.find("=")
+                # if pos > -1:
                 p = zeile[:pos]
                 # print(f"{p =}, {pos =}, {zeile =}")
                 if p in parmListe:
@@ -368,14 +376,31 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
                     # print(f"{p =} in parmListe, {erg =}")
                 else:
                     # print(f"{p =} NICHT in parmListe, {erg =}")
-                    pass
+                    self.infoZeilenAusgeben(zeile)
+                    # pass
                 if erg == True:
                     self.anzeigeFortschritt()
-            else:   # kein = gefunden
-                if zeile > "":
-                    edt = self.edit.toPlainText()
-                    self.edit.setText(edt + txt)
-                    self.edit.moveCursor(QTextCursor.MoveOperation.End)
+            else:   # kein = gefunden oder zeile zu lang
+                self.infoZeilenAusgeben(zeile)
+        return
+
+    def infoZeilenAusgeben(self, zeile):
+        ''' 
+        gibt die InfoZeilen im Fenster self.edit aus
+        Parm:
+            zeile:  der Text, der ausgegeben werden soll (kann auch Blank sein)
+        '''
+        zeile = zeile.strip()
+        if zeile.find("\r") > -1:
+            zeile = zeile.replace("\r", "\n")
+        if zeile > "":
+            edt = self.edit.toPlainText()
+            self.edit.setText(edt + zeile + "\n")
+            self.edit.moveCursor(QTextCursor.MoveOperation.End)
+            # with open("debug.Log", "a") as flog:
+            #     flog.write(zeile.replace("\r", "$"))
+            #     flog.write('§\n')
+
         return
 
     def anzeigeFortschritt(self):
@@ -496,7 +521,8 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
                     exitCode, exitStatus))
 
         # Abschluss-Arbeiten des aktuellen Prozesses
-        self.edit.setText(" ")
+        # self.edit.setText(" ")
+        self.edit.setText("Benutzte ffcmd.ini:\n\n" + self.ff.usedIni + "\n\n")
         self.refreshTable(False)
         self.process = None
 

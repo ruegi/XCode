@@ -68,7 +68,7 @@ class Ui_MainWindow(object):
         self.edit.setMinimumSize(QtCore.QSize(0, 192))
         self.edit.setBaseSize(QtCore.QSize(1147, 192))
         font = QtGui.QFont()
-        font.setFamily("Source Code Pro")
+        font.setFamily("Cascadia Mono")
         font.setPointSize(10)
         self.edit.setFont(font)
         self.edit.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)

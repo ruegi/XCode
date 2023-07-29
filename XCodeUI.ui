@@ -133,7 +133,7 @@ QProgressBar::chunk {
         </property>
         <property name="font">
          <font>
-          <family>Source Code Pro</family>
+          <family>Cascadia Mono</family>
           <pointsize>10</pointsize>
          </font>
         </property>

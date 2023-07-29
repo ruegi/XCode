@@ -7,6 +7,7 @@ build/
 idea/
 tests/
 *.png
+*.log
 tst_*.py
 .qt_for_*
 ffcmd.ini.10Bit
