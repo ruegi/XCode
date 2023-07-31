@@ -30,6 +30,12 @@
       </item>
       <item row="1" column="1">
        <widget class="QLineEdit" name="led_pfad">
+        <property name="font">
+         <font>
+          <family>Cascadia Mono</family>
+          <pointsize>10</pointsize>
+         </font>
+        </property>
         <property name="text">
          <string>C:\ts</string>
         </property>
@@ -61,6 +67,12 @@
           <width>0</width>
           <height>300</height>
          </size>
+        </property>
+        <property name="font">
+         <font>
+          <family>Cascadia Mono</family>
+          <pointsize>10</pointsize>
+         </font>
         </property>
         <property name="styleSheet">
          <string notr="true">QProgressBar {
@@ -178,6 +190,11 @@ QProgressBar::chunk {
         </item>
         <item>
          <widget class="QProgressBar" name="probar1">
+          <property name="font">
+           <font>
+            <family>Cascadia Mono</family>
+           </font>
+          </property>
           <property name="value">
            <number>0</number>
           </property>
@@ -316,6 +333,8 @@ QProgressBar::chunk {
        <widget class="QLabel" name="lbl_frames">
         <property name="font">
          <font>
+          <family>Cascadia Mono</family>
+          <pointsize>10</pointsize>
           <bold>true</bold>
          </font>
         </property>

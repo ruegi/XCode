@@ -21,6 +21,7 @@ Versionen:
 2.5     Weiterarbeit an den Anzeigeproblemen; kompatibilität der Ausgaben von hevc und av1 Encodern hergestellt
 2.51    progress-Logging abgeschaltet und nach c:\temp verschoben
 2.6     Bessere Darstellung um edit-Widget
+2.7     Darstellung für ffmpeg hvenc & ffmpeg AV1 stimmig
 """
 from PyQt6.QtWidgets import (QMainWindow,
                              QTextEdit,
@@ -63,14 +64,15 @@ class Konstanten:                       # Konstanten des Programms
     QUELLE = "C:\\ts\\"
     ZIEL = "E:\\Filme\\schnitt\\"
     LOGPATH = "E:\\Filme\\log\\"
-    VERSION = "2.6"
-    VERSION_DAT = "2023-07-28"
+    VERSION = "2.7"
+    VERSION_DAT = "2023-07-31"
     normalFG = QBrush(QColor.fromString("Gray"))
     normalBG = QBrush(QColor.fromString("White"))
     highFG = QBrush(QColor.fromString("White"))
     highBG = QBrush(QColor.fromString("Chocolate"))
     OkFG = QBrush(QColor.fromString("Green"))
-    ffmpegLog = r"C:\temp\ffmpegLog.txt"
+    logProgress = False      # 4 debug
+    ffmpegLog = r"C:\temp\ffmpegLog"
 
 
 class ladeFenster(QWidget):
@@ -219,7 +221,6 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.saveTxt = ""       # für -onReadData
         self.saveTxtAnz = 0     # für -onReadData
         self.fortschritt = None  # hält das Fortschritt Objekt des aktuell codierten Film
-        self.logProgress = True     # 4 debug
         self.process = None
         self.processkilled = False
         self.currentX = True    # Zustamd der X-Spalte; True=alle aktiviert
@@ -285,6 +286,11 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.log.log(self.ff.ffXcodeCmd(
             "{EingabeDatei}", "{AusgabeDatei}", nurLog=True) + "\n")
 
+        if Konstanten.logProgress:
+            Konstanten.ffmpegLog = Konstanten.ffmpegLog + "-" + self.dt + ".log"
+            with open(Konstanten.ffmpegLog, "a") as flog:
+                flog.write("")
+
         self.ladeFiles(self.quelle)
 
         if self.tsliste.size == 0:
@@ -328,42 +334,27 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
 
         parmListe = ['frame', 'fps', 'stream_0_0_q', 'bitrate', 'total_size', 'out_time_us',
                      'out_time_ms', 'out_time', 'dup_frames', 'drop_frames', 'speed', 'progress']
-        txt = self.process.readAllStandardOutput().data().decode('cp850')
-
-        if self.logProgress:
+        # txt = self.process.readAllStandardOutput().data().decode('cp850')
+        txt = self.process.readAllStandardOutput().data().decode('cp1252')
+        if Konstanten.logProgress:
             # jeder Block wird mit einem §\n abgeschlossen, jedes \r wird durch $ sichtbar gemacht
             with open(Konstanten.ffmpegLog, "a") as flog:
-                flog.write(txt.replace("\r", "$"))
+                try:
+                    tx = txt.replace("\r", "$")
+                except:
+                    tx = txt
+                flog.write(tx)
                 flog.write('§\n')
 
+        txt = txt.replace("\r", "\n")
         zeilen = txt.split("\n")
         for zeile in zeilen:
+            if zeile == "":
+                continue
             pos = zeile.find("=")
             erg = None
-            if (len(zeile) < 25) and (pos > 0):
-                # frpos = zeile.find("frame=")
-                # if frpos > -1:
-                #     z1 = zeile[0:frpos]
-                #     self.infoZeilenAusgeben(z1)
-                #     zeile = zeile[frpos:]
-                # erg = None
-                # if len(zeile) > 25:
-                #     while "\r" in zeile:
-                #         rPos = zeile.find("\r")
-                #         zeile = zeile[(rPos+1):]
-                #         if zeile.startswith("frame="):
-                #             # print(f"{zeile=}")
-                #             break
-                #         else:
-                #             self.infoZeilenAusgeben(zeile)
-                #             continue
-
-                # if len(zeile) == 0:
-                #     continue
-                # pos = zeile.find("=")
-                # if pos > -1:
+            if (len(zeile) < 33) and (pos > 0):     # out_time_us=-9223372036854775807
                 p = zeile[:pos]
-                # print(f"{p =}, {pos =}, {zeile =}")
                 if p in parmListe:
                     # ggf. einen wirren rest abschneiden
                     if p == "frame":
@@ -376,12 +367,13 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
                     # print(f"{p =} in parmListe, {erg =}")
                 else:
                     # print(f"{p =} NICHT in parmListe, {erg =}")
-                    self.infoZeilenAusgeben(zeile)
-                    # pass
+                    if not zeile.startswith("frame="):
+                        self.infoZeilenAusgeben(zeile)
                 if erg == True:
                     self.anzeigeFortschritt()
             else:   # kein = gefunden oder zeile zu lang
-                self.infoZeilenAusgeben(zeile)
+                if zeile > "" and not zeile.startswith("frame="):
+                    self.infoZeilenAusgeben(zeile)
         return
 
     def infoZeilenAusgeben(self, zeile):
@@ -724,12 +716,12 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
             QProcess.ProcessChannelMode.MergedChannels)
         self.process.readyReadStandardOutput.connect(self.onReadData)
         self.process.start(self.lastcmd)
-        if self.logProgress:
+        if Konstanten.logProgress:
             with open(Konstanten.ffmpegLog, "a") as flog:
                 flog.write(
                     f"\n---------- [{self.ts_von}] ------------------------------------\n" +
-                    "Das Ende eines eingelesenen Blocks wird mit '§\n' gekennzeichnet," +
-                    "Ein '\r' wird mit '$' markiert" +
+                    "Das Ende eines eingelesenen Blocks wird mit '§CRLF' gekennzeichnet," +
+                    "Ein einfaches 'CR' wird mit '$' markiert" +
                     "-"*80)
 
     def progende(self):     # Ende Proc mit Nachfrage
