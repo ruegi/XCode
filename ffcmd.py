@@ -27,6 +27,7 @@ class Konstanten():
     SD_CMD = 'c:\\ffmpeg\\bin\\ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}" -map 0 -c:v hevc_nvenc -pix_fmt p010le -profile:v main10 -level 4.1 -tier high -preset p7 -tune hq -dn -codec:a copy -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
     HD_CMD = 'c:\\ffmpeg\\bin\\ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}" -map 0 -c:v hevc_nvenc -pix_fmt p010le -profile:v main10 -level 4.1 -tier high -preset p7 -tune hq -dn -codec:a copy -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
     FHD_CMD = 'c:\\ffmpeg\\bin\\ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}" -map 0 -c:v hevc_nvenc -pix_fmt p010le -profile:v main10 -level 4.1 -tier high -preset p7 -tune hq -dn -codec:a aac -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
+    Copy_CMD = 'c:\\ffmpeg\\bin\\ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}" -map 0 -c:v copy -dn -codec:a copy -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
     MUSTER_FFMCMD = f'''\
 [SD]
 cmd = {SD_CMD}
@@ -38,6 +39,9 @@ cmd = {HD_CMD}
 cmd ={FHD_CMD}
 # alternative
 # fhd_cmd = c:\\ffmpeg\\bin\\ffmpeg -hide_banner {{canvassize}} -hwaccel auto -i "{{EingabeDatei}}" -map 0 -c:v hevc_nvenc -pix_fmt p010le -profile:v main10 -level 4.1 -tier high -preset p7 -tune hq -dn -codec:a aac -c:s dvdsub -y -f matroska "{{AusgabeDatei}}"
+
+[Copy]
+cmd ={Copy_CMD}
 '''
 
 
@@ -70,28 +74,38 @@ class ffmpegcmd:
         self.cmd_HD = config.get('HD', 'cmd', fallback=Konstanten.HD_CMD)
         self.cmd_FullHD = config.get(
             'FullHD', 'cmd', fallback=Konstanten.FHD_CMD)
-        self.usedIni = f"[SD]\n{self.cmd_SD}\n\n[HD]\n{self.cmd_HD}\n\n[FullHD]\n{self.cmd_FullHD}\n"
+        # config.get('Copy', 'cmd', fallback=Konstanten.HD_Copy)
+        self.cmd_Copy = config.get('Copy', 'cmd', fallback=Konstanten.Copy_CMD)
+        self.usedIni = f"[SD]\n{self.cmd_SD}\n\n[HD]\n{self.cmd_HD}\n\n[FullHD]\n{self.cmd_FullHD}\n\n[Copy]\n{self.cmd_Copy}\n"
 
-    def ffXcodeCmd(self, ts_von, ts_nach, nurLog=False):
+    def ffXcodeCmd(self, ts_von, ts_nach, nurLog=False, nurCopy=False):
         '''
         montiert den ffmpeg Aufruf
         Parameter:  ts_von: QuellVideo
                     ts_nach: ZielVideo
                     nurLog (opt.): wenn True, wird nur die benutzte Ini-Datei zurückgegeben (ohne Auflösung der Variablen)
+                    nurCopy(opt.): nutzt die self.CMD_Copy, wenn True
+                                    (das ist ein FallBack, z.B. wenn das transcodierte Video größer als das Original ist;
+                                     z.B. ist das mitunter bei AV1 der Fall)
         Returns:    den montierten ffmpec Aufruf String
         '''
         if nurLog:
             return "SD:  " + self.cmd_SD + "\nHD:  " + self.cmd_HD + "\nFullHD: " + self.cmd_FullHD
 
         aufrufDict = {'SD': self.cmd_SD,
-                      'HD': self.cmd_HD, 'FullHD': self.cmd_FullHD, }
+                      'HD': self.cmd_HD,
+                      'FullHD': self.cmd_FullHD,
+                      'Copy': self.cmd_Copy}
 
         self.video = videoFile.videoFile(ts_von)
 
-        if self.video.typ in ("SD", "HD", "FullHD"):
-            cmd = aufrufDict[self.video.typ]
+        if nurCopy == True:
+            cmd = self.cmd_Copy
         else:
-            cmd = aufrufDict["HD"]  # default
+            if self.video.typ in ("SD", "HD", "FullHD"):
+                cmd = aufrufDict[self.video.typ]
+            else:
+                cmd = aufrufDict["HD"]  # default
 
         # weitere Ersetzungen der cmd-Zeile
         cmd = cmd.replace("{EingabeDatei}", ts_von)
@@ -104,7 +118,7 @@ class ffmpegcmd:
         cmd = cmd.replace(
             "{canvassize}", f"-canvas_size {self.video.weite}x{self.video.hoehe}")
 
-        # zum schluss noch den Prpgress einbauen
+        # zum Schluss noch den Prpgress-Indikator einbauen
         pos = cmd.find(" -i ")
         p1 = cmd[0:pos]
         p2 = cmd[pos:]
@@ -113,26 +127,9 @@ class ffmpegcmd:
         return cmd
 
 
-# def correct_illegal_chars(txt="der zu prüfende String") -> str:
-#     '''
-#     Maskiert ein & durch ^&; unter win nötig, da cmd sonst falsch interpretiert
-#     '''
-#     try:
-#         i = txt.index("&")
-#     except:
-#         i = None
-#     if i is not None:
-#         if i > 0:
-#             if txt[i-1] == "^":
-#                 pass            # & ist bereits 'escaped'
-#             else:
-#                 txt = txt.replace("&", "^&")
-#     return txt
-
-
 if __name__ == '__main__':
-    film = "Quo_vadis_(1951).ts"
-    von = "C:\\ts\\" + film
+    film = "Jolt"
+    von = "C:\\ts\\" + film + ".ts.done"
     nach = "E:\\Filme\\schnitt\\" + film + ".mkv"
 
     if os.path.isfile(von):
@@ -141,7 +138,7 @@ if __name__ == '__main__':
         exit(1)
 
     ff = ffmpegcmd()
-    cmd = ff.ffXcodeCmd(von, nach)
+    cmd = ff.ffXcodeCmd(von, nach, nurCopy=True)
 
     print("Eingabe   : {0}".format(von))
     print("Ausgabe   : {0}".format(nach))

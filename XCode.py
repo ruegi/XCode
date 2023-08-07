@@ -22,6 +22,8 @@ Versionen:
 2.51    progress-Logging abgeschaltet und nach c:\temp verschoben
 2.6     Bessere Darstellung um edit-Widget
 2.7     Darstellung für ffmpeg hvenc & ffmpeg AV1 stimmig
+2.8     automatischer Rückfall in den Nur-Copy-Modus, wenn das Ziel größer als die Quelle geworden ist.
+        Dafür gibt es ab jetzt den Abschnitt [Copy] in der ffcmd.ini
 """
 from PyQt6.QtWidgets import (QMainWindow,
                              QTextEdit,
@@ -64,8 +66,8 @@ class Konstanten:                       # Konstanten des Programms
     QUELLE = "C:\\ts\\"
     ZIEL = "E:\\Filme\\schnitt\\"
     LOGPATH = "E:\\Filme\\log\\"
-    VERSION = "2.7"
-    VERSION_DAT = "2023-07-31"
+    VERSION = "2.8"
+    VERSION_DAT = "2023-08-07"
     normalFG = QBrush(QColor.fromString("Gray"))
     normalBG = QBrush(QColor.fromString("White"))
     highFG = QBrush(QColor.fromString("White"))
@@ -239,6 +241,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.ts_nach = ""       # aktuelles ziel
         self.lastcmd = ""       # letzter cmd, der im Prozess verarbeitet wurde
         self.w = None           # externes Transcode Window
+        self.redoWithCopy = False   # WiederholungsFlag für nurCopy-Jobs
 
         # Icon versorgen
         scriptDir = os.path.dirname(os.path.realpath(__file__))
@@ -494,6 +497,16 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
                 format_size(qlen), format_size(zlen), zlen / qlen * 100))
             self.log.log("Dauer  : {0}; ExitCode: {1}; ExitStatus: {2} ".format(
                 time_str, exitCode, exitStatus))
+
+            # missglückte Konvertierung durch reine Copy korrigieren
+            # z.B. das Ergebnis ist Größer als die Quelle
+            if zlen >= qlen:
+                self.log.log(
+                    "\nMisslungene Konvertierung: Das Ziel ist größer als die Quelle!\nVersuche eine reine Copy!")
+                self.redoWithCopy = True
+                self.convert()
+                return
+
             try:
                 shutil.move(self.ts_von, self.ts_von + ".done")
             except:
@@ -690,7 +703,9 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
 
         # -----------------------------------------------------------------------------
         # cmd montieren
-        self.lastcmd = self.ff.ffXcodeCmd(self.ts_von, self.ts_nach)
+        self.lastcmd = self.ff.ffXcodeCmd(
+            self.ts_von, self.ts_nach, nurCopy=self.redoWithCopy)
+        self.redoWithCopy = False
         self.frameCount = Datei.video.frameCount
         self.fortschritt = Fortschritt()
         self.log.log("ffmpeg Aufruf: {0}".format(self.lastcmd))
