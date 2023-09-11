@@ -66,8 +66,8 @@ class Konstanten:                       # Konstanten des Programms
     QUELLE = "C:\\ts\\"
     ZIEL = "E:\\Filme\\schnitt\\"
     LOGPATH = "E:\\Filme\\log\\"
-    VERSION = "2.8"
-    VERSION_DAT = "2023-08-07"
+    VERSION = "2.81"
+    VERSION_DAT = "2023-09-10"
     normalFG = QBrush(QColor.fromString("Gray"))
     normalBG = QBrush(QColor.fromString("White"))
     highFG = QBrush(QColor.fromString("White"))
@@ -116,6 +116,7 @@ class tsEintrag:
         self.name = name
         self.status = status
         self.progress = 0
+        self.copyMode = False
         self.video = videoFile.videoFile(fullpath)
 
     def __str__(self):
@@ -703,6 +704,8 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
 
         # -----------------------------------------------------------------------------
         # cmd montieren
+        if self.redoWithCopy:
+            Datei.copyMode = True
         self.lastcmd = self.ff.ffXcodeCmd(
             self.ts_von, self.ts_nach, nurCopy=self.redoWithCopy)
         self.redoWithCopy = False
@@ -812,7 +815,10 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         skipped = 0
         ok = 0
         err = 0
+        anzCopyMode = 0
         for ts in self.tsliste.liste:
+            if ts.copyMode:
+                anzCopyMode += 1
             if ts.status == "OK":
                 ok += 1
             elif ts.status == "warten...  ":
@@ -822,12 +828,16 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
             else:
                 err += 1
         if (wait == 0) & (err == 0) & (ok > 0):
-            txt = f"\nAlles OK!\n\nOK: {ok}\n" + f"Fehler: {err}\n".format(
-                err) + f"Nicht bearbeitet: {wait + skipped}\n"
+            txt = f"\nTransCode OK!\n\nOK: {ok}\n" + \
+                f"davon nur kopiert: {anzCopyMode}\n" + \
+                f"Fehler: {err}\n" + \
+                f"Nicht bearbeitet: {wait + skipped}\n"
             isOK = True
         else:
-            txt = f"\nErgebnis!\n\nOK: {ok}\n" + f"Fehler: {err}\n".format(
-                err) + f"Nicht bearbeitet: {wait + skipped}\n"
+            txt = f"\nErgebnis!\n\nOK: {ok}\n" + \
+                f"davon nur kopiert: {anzCopyMode}\n" + \
+                f"Fehler: {err}\n" + \
+                f"Nicht bearbeitet: {wait + skipped}\n"
             isOK = False
         return (txt, isOK)
 
