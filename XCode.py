@@ -24,6 +24,7 @@ Versionen:
 2.7     Darstellung für ffmpeg hvenc & ffmpeg AV1 stimmig
 2.8     automatischer Rückfall in den Nur-Copy-Modus, wenn das Ziel größer als die Quelle geworden ist.
         Dafür gibt es ab jetzt den Abschnitt [Copy] in der ffcmd.ini
+2.9     Erweiterung des Ergebnisses um Summen der Original- und der Codierten Länge
 """
 from PyQt6.QtWidgets import (QMainWindow,
                              QTextEdit,
@@ -66,8 +67,8 @@ class Konstanten:                       # Konstanten des Programms
     QUELLE = "C:\\ts\\"
     ZIEL = "E:\\Filme\\schnitt\\"
     LOGPATH = "E:\\Filme\\log\\"
-    VERSION = "2.81"
-    VERSION_DAT = "2023-09-10"
+    VERSION = "2.9"
+    VERSION_DAT = "2023-11-19"
     normalFG = QBrush(QColor.fromString("Gray"))
     normalBG = QBrush(QColor.fromString("White"))
     highFG = QBrush(QColor.fromString("White"))
@@ -118,6 +119,8 @@ class tsEintrag:
         self.progress = 0
         self.copyMode = False
         self.video = videoFile.videoFile(fullpath)
+        self.org_len = 0
+        self.xcode_len = 0
 
     def __str__(self):
         return "{0}: {1} mit Status {2}".format(self.nr, self.fullpath, self.status)
@@ -476,11 +479,16 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
 
         # print("Finished; exitCode={0}, exitStatus={1}".format(exitCode, exitStatus))
         if exitCode == 0:
-            qlen = os.stat(self.ts_von).st_size
+            try:
+                qlen = os.stat(self.ts_von).st_size
+            except:
+                qlen = 0            
             try:
                 zlen = os.stat(self.ts_nach).st_size
             except:
                 zlen = 0
+            Datei.org_len = qlen
+            Datei.xcode_len = zlen
 
             # # 4 test only ---------------------
             # with open("C:\\ts\\lastFrameInfo.info", mode="+bw") as out:
@@ -510,6 +518,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
 
             try:
                 shutil.move(self.ts_von, self.ts_von + ".done")
+                self.ts_von = self.ts_von + ".done"
             except:
                 self.log.log(
                     "Warnung: Konnte die QuelleDatei nicht in *.done umbenennen!")
@@ -816,11 +825,15 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         ok = 0
         err = 0
         anzCopyMode = 0
+        summe_org = 0
+        summe_xcode = 0
         for ts in self.tsliste.liste:
             if ts.copyMode:
                 anzCopyMode += 1
             if ts.status == "OK":
                 ok += 1
+                summe_org += ts.org_len
+                summe_xcode += ts.xcode_len
             elif ts.status == "warten...  ":
                 wait += 1
             elif ts.status == "skipped":
@@ -839,6 +852,12 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
                 f"Fehler: {err}\n" + \
                 f"Nicht bearbeitet: {wait + skipped}\n"
             isOK = False
+        summe_org_str = format_size(summe_org)
+        summe_xcode_str = format_size(summe_xcode)
+        txt = txt + "\n" + "-"*80 + "\n" + \
+                f"Summe der Quell-Dateien:  {summe_org_str}\n" + \
+                f"Summe der XCode-Dateien:  {summe_xcode_str}\n" + \
+                f"Kompression auf:  {summe_xcode/summe_org*100:.2f}%"
         return (txt, isOK)
 
 
