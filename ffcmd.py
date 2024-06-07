@@ -10,25 +10,34 @@ laden der ffmpeg-Befehle aus einer Datei und montieren des Transcode-Aufrufs
 Änderungen:
 2020-02-04  rg      Analyse der Codierung der Quelldatei eingebaut
 2023-05-29  rg      videoFile integriert; Codierung der QuellDatei wieder entfernt
+2024-06-07  rg      ffcmd Muster aktualisiert
 """
 from pathlib import Path
+
 # from os.path import split, splitext
 import configparser
 import videoFile
 import os
 
 
-class Konstanten():
-    FFMPEG = r'c:\ffmpeg\bin\ffmpeg.exe'
-    ICON = 'XCode.ico'
-    INIDATEI = 'ffcmd.ini'
-    XCODEZIEL = 'E:\\Filme\\schnitt\\'
-    LOGPATH = 'E:\\Filme\\log\\'
-    SD_CMD = 'c:\\ffmpeg\\bin\\ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}" -map 0 -c:v hevc_nvenc -pix_fmt p010le -profile:v main10 -level 4.1 -tier high -preset p7 -tune hq -dn -codec:a copy -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
-    HD_CMD = 'c:\\ffmpeg\\bin\\ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}" -map 0 -c:v hevc_nvenc -pix_fmt p010le -profile:v main10 -level 4.1 -tier high -preset p7 -tune hq -dn -codec:a copy -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
-    FHD_CMD = 'c:\\ffmpeg\\bin\\ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}" -map 0 -c:v hevc_nvenc -pix_fmt p010le -profile:v main10 -level 4.1 -tier high -preset p7 -tune hq -dn -codec:a aac -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
-    Copy_CMD = 'c:\\ffmpeg\\bin\\ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}" -map 0 -c:v copy -dn -codec:a copy -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
-    MUSTER_FFMCMD = f'''\
+class Konstanten:
+    FFMPEG = r"c:\ffmpeg\bin\ffmpeg.exe"
+    ICON = "XCode.ico"
+    INIDATEI = "ffcmd.ini"
+    XCODEZIEL = "E:\\Filme\\schnitt\\"
+    LOGPATH = "E:\\Filme\\log\\"
+
+    SD_CMD = r'c:\ffmpeg\bin\ffmpeg -hide_banner {canvassize} -loglevel error -i "{EingabeDatei}" -map 0 -c:v libsvtav1 -pix_fmt yuv420p10le -threads 8 -crf 24 -preset 8 -svtav1-params tune=0 -dn -codec:a libopus -af aformat=channel_layouts="7.1|5.1|stereo" -b:a 128k -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
+    HD_CMD = r'c:\ffmpeg\bin\ffmpeg -hide_banner {canvassize} -loglevel error -i "{EingabeDatei}" -map 0 -c:v libsvtav1 -pix_fmt yuv420p10le -threads 8 -crf 27 -preset 8 -svtav1-params tune=0 -dn -codec:a libopus -af aformat=channel_layouts="7.1|5.1|stereo" -b:a 128k -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
+    FHD_CMD = r'c:\ffmpeg\bin\ffmpeg -hide_banner {canvassize} -loglevel error -i "{EingabeDatei}" -map 0 -c:v libsvtav1 -pix_fmt yuv420p10le -threads 8 -crf 31 -preset 8 -svtav1-params tune=0 -dn -codec:a libopus -af aformat=channel_layouts="7.1|5.1|stereo" -b:a 128k -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
+    Copy_CMD = r'c:\\ffmpeg\\bin\\ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}" -map 0 -c:v copy -dn -codec:a libopus -af aformat=channel_layouts="7.1|5.1|stereo" -b:a 128k -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
+
+    # alt set 2024-06-07
+    # SD_CMD = 'c:\\ffmpeg\\bin\\ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}" -map 0 -c:v hevc_nvenc -pix_fmt p010le -profile:v main10 -level 4.1 -tier high -preset p7 -tune hq -dn -codec:a copy -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
+    # HD_CMD = 'c:\\ffmpeg\\bin\\ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}" -map 0 -c:v hevc_nvenc -pix_fmt p010le -profile:v main10 -level 4.1 -tier high -preset p7 -tune hq -dn -codec:a copy -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
+    # FHD_CMD = 'c:\\ffmpeg\\bin\\ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}" -map 0 -c:v hevc_nvenc -pix_fmt p010le -profile:v main10 -level 4.1 -tier high -preset p7 -tune hq -dn -codec:a aac -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
+    # Copy_CMD = 'c:\\ffmpeg\\bin\\ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}" -map 0 -c:v copy -dn -codec:a copy -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
+    MUSTER_FFMCMD = f"""\
 [SD]
 cmd = {SD_CMD}
 
@@ -37,12 +46,13 @@ cmd = {HD_CMD}
 
 [FullHD]
 cmd ={FHD_CMD}
+
 # alternative
 # fhd_cmd = c:\\ffmpeg\\bin\\ffmpeg -hide_banner {{canvassize}} -hwaccel auto -i "{{EingabeDatei}}" -map 0 -c:v hevc_nvenc -pix_fmt p010le -profile:v main10 -level 4.1 -tier high -preset p7 -tune hq -dn -codec:a aac -c:s dvdsub -y -f matroska "{{AusgabeDatei}}"
 
 [Copy]
 cmd ={Copy_CMD}
-'''
+"""
 
 
 class ffmpegcmd:
@@ -55,7 +65,7 @@ class ffmpegcmd:
         # print(head, tail, ext, self.initFile)
 
         self.video = None
-        self.initFile = Konstanten.INIDATEI     # head + "\\" + root + ".ini"
+        self.initFile = Konstanten.INIDATEI  # head + "\\" + root + ".ini"
         # init Command-String für das Transcodieren herstellen oder lesen
         pFile = Path(self.initFile)
         if not pFile.is_file():
@@ -70,16 +80,15 @@ class ffmpegcmd:
         config = configparser.ConfigParser()
         config.read(self.initFile)
 
-        self.cmd_SD = config.get('SD', 'cmd', fallback=Konstanten.SD_CMD)
-        self.cmd_HD = config.get('HD', 'cmd', fallback=Konstanten.HD_CMD)
-        self.cmd_FullHD = config.get(
-            'FullHD', 'cmd', fallback=Konstanten.FHD_CMD)
+        self.cmd_SD = config.get("SD", "cmd", fallback=Konstanten.SD_CMD)
+        self.cmd_HD = config.get("HD", "cmd", fallback=Konstanten.HD_CMD)
+        self.cmd_FullHD = config.get("FullHD", "cmd", fallback=Konstanten.FHD_CMD)
         # config.get('Copy', 'cmd', fallback=Konstanten.HD_Copy)
-        self.cmd_Copy = config.get('Copy', 'cmd', fallback=Konstanten.Copy_CMD)
+        self.cmd_Copy = config.get("Copy", "cmd", fallback=Konstanten.Copy_CMD)
         self.usedIni = f"[SD]\n{self.cmd_SD}\n\n[HD]\n{self.cmd_HD}\n\n[FullHD]\n{self.cmd_FullHD}\n\n[Copy]\n{self.cmd_Copy}\n"
 
     def ffXcodeCmd(self, ts_von, ts_nach, nurLog=False, nurCopy=False):
-        '''
+        """
         montiert den ffmpeg Aufruf
         Parameter:  ts_von: QuellVideo
                     ts_nach: ZielVideo
@@ -88,14 +97,23 @@ class ffmpegcmd:
                                     (das ist ein FallBack, z.B. wenn das transcodierte Video größer als das Original ist;
                                      z.B. ist das mitunter bei AV1 der Fall)
         Returns:    den montierten ffmpec Aufruf String
-        '''
+        """
         if nurLog:
-            return "SD:  " + self.cmd_SD + "\nHD:  " + self.cmd_HD + "\nFullHD: " + self.cmd_FullHD
+            return (
+                "SD:  "
+                + self.cmd_SD
+                + "\nHD:  "
+                + self.cmd_HD
+                + "\nFullHD: "
+                + self.cmd_FullHD
+            )
 
-        aufrufDict = {'SD': self.cmd_SD,
-                      'HD': self.cmd_HD,
-                      'FullHD': self.cmd_FullHD,
-                      'Copy': self.cmd_Copy}
+        aufrufDict = {
+            "SD": self.cmd_SD,
+            "HD": self.cmd_HD,
+            "FullHD": self.cmd_FullHD,
+            "Copy": self.cmd_Copy,
+        }
 
         self.video = videoFile.videoFile(ts_von)
 
@@ -116,7 +134,8 @@ class ffmpegcmd:
             cmd = cmd.replace("{BitRate}", self.video.bitRate)
 
         cmd = cmd.replace(
-            "{canvassize}", f"-canvas_size {self.video.weite}x{self.video.hoehe}")
+            "{canvassize}", f"-canvas_size {self.video.weite}x{self.video.hoehe}"
+        )
 
         # zum Schluss noch den Prpgress-Indikator einbauen
         pos = cmd.find(" -i ")
@@ -127,7 +146,7 @@ class ffmpegcmd:
         return cmd
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     film = "Jolt"
     von = "C:\\ts\\" + film + ".ts.done"
     nach = "E:\\Filme\\schnitt\\" + film + ".mkv"

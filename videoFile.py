@@ -76,4 +76,3 @@ if __name__ == '__main__':
     print("Video-Anz.Frames: ", vid.frameCount)
     print("Video-fps: ", vid.fps)
     print("BitRate: ", vid.bitRate)
-    
