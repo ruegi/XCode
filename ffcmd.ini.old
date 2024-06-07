@@ -1,0 +1,16 @@
+[SD]
+# cmd = c:\ffmpeg\bin\ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}" -map 0 -c:v hevc_nvenc -pix_fmt p010le -profile:v main10 -level 4.1 -tier high -preset p7 -tune hq -dn -codec:a copy -c:s dvdsub -y -f matroska "{AusgabeDatei}"
+# cmd = c:\ffmpeg\bin\ffmpeg -hide_banner {canvassize} -loglevel error -stats -progress pipe:1 -i "{EingabeDatei}" -map 0 -c:v libsvtav1 -pix_fmt yuv420p10le -threads 8 -crf 24 -preset 8 -svtav1-params tune=0 -dn -codec:a libopus -af aformat=channel_layouts="7.1|5.1|stereo" -b:a 128k -c:s dvdsub -y -f matroska "{AusgabeDatei}"
+cmd = c:\ffmpeg\bin\ffmpeg -hide_banner {canvassize} -loglevel error -i "{EingabeDatei}" -map 0 -c:v libsvtav1 -pix_fmt yuv420p10le -threads 8 -crf 24 -preset 8 -svtav1-params tune=0 -dn -codec:a libopus -af aformat=channel_layouts="7.1|5.1|stereo" -b:a 128k -c:s dvdsub -y -f matroska "{AusgabeDatei}"
+
+[HD]
+# cmd = c:\ffmpeg\bin\ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}" -map 0 -c:v hevc_nvenc -pix_fmt p010le -profile:v main10 -level 4.1 -tier high -preset p7 -tune hq -dn -codec:a copy -c:s dvdsub -y -f matroska "{AusgabeDatei}"
+cmd = c:\ffmpeg\bin\ffmpeg -hide_banner {canvassize} -loglevel error -i "{EingabeDatei}" -map 0 -c:v libsvtav1 -pix_fmt yuv420p10le -threads 8 -crf 27 -preset 8 -svtav1-params tune=0 -dn -codec:a libopus -af aformat=channel_layouts="7.1|5.1|stereo" -b:a 128k -c:s dvdsub -y -f matroska "{AusgabeDatei}"
+
+[FullHD]
+# cmd = c:\ffmpeg\bin\ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}" -map 0 -c:v hevc_nvenc -pix_fmt p010le -profile:v main10 -level 4.1 -tier high -preset p7 -tune hq -dn -codec:a aac -c:s dvdsub -y -f matroska "{AusgabeDatei}"
+# cmd = c:\ffmpeg\bin\ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}" -map 0 -c:v hevc_nvenc -pix_fmt p010le -profile:v main10 -level 4.1 -tier high -rc vbr -cq 28 -qmin 28 -qmax 28 -dn -codec:a aac -c:s dvdsub -y -f matroska "{AusgabeDatei}"
+cmd = c:\ffmpeg\bin\ffmpeg -hide_banner {canvassize} -loglevel error -i "{EingabeDatei}" -map 0 -c:v libsvtav1 -pix_fmt yuv420p10le -threads 8 -crf 31 -preset 8 -svtav1-params tune=0 -dn -codec:a libopus -af aformat=channel_layouts="7.1|5.1|stereo" -b:a 128k -c:s dvdsub -y -f matroska "{AusgabeDatei}"
+
+[Copy]
+cmd = c:\\ffmpeg\\bin\\ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}" -map 0 -c:v copy -dn -codec:a libopus -af aformat=channel_layouts="7.1|5.1|stereo" -b:a 128k -c:s dvdsub -y -f matroska "{AusgabeDatei}"
