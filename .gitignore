@@ -13,6 +13,5 @@ tst_*.py
 .qt_for_*
 ffcmd.ini.*
 .vscode/launch.json
-*.dll
 *.pyd
 

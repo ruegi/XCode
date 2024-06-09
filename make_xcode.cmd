@@ -1,30 +1,36 @@
 @echo off
 echo Achtung!
 echo Die App 'xcode' wird jetzt mit NUITKA gebaut
-echo Bitte dafür 'nuit.cmd' aufrufen!
 echo -----------------------------------------
-goto Ende
+echo XCodeUI.py erzeugen...
+pyside6-uic XCodeUI.ui -o XCodeUI.py
+if errorlevel 1 goto UIC-FEHLER
+echo OK
+goto NEXT
 
-rem pyuic5 -x XCodeUI2.ui -o XCodeUI2.py
-rem pyuic5 -x transcodeWinUI.ui -o transcodeWinUI.py
-rem make Datei für XCode; das ist das aktuelle XCode Tool
-rem rg 2023-05-29
-pyuic6 -x XCodeUI.ui -o XCodeUI.py
-rem pyuic6 -x transcodeWinUI.ui -o transcodeWinUI.py
+:UIC-FEHLER
+echo FEHLER beim Aufruf von pyside6-UIC !
+echo Ende mit Fehler!
+goto Ende1
 
+:NEXT
 if "%1"=="full" goto EXE
 goto Ende
 
 :EXE
-rem pyinstaller -w -i XC.ico --clean -y XCode.py
-rem pyinstaller -w -i FLGGERM.ICO --clean -y XCode.py
-pyinstaller --clean xcode.spec
-
-rem if not exist .\dist\xcode goto Ende
-if not exist .\dist\xcode\xcode.exe goto Ende
-copy .\XC_1.ico .\dist\XCode
-copy .\ffcmd.ini .\dist\XCode
+python -m nuitka --standalone ^
+    --windows-disable-console ^
+    --enable-plugin=pyside6 ^
+    --include-data-files=d:\DEV\Py\XCode\.venv\Lib\site-packages\pymediainfo\MediaInfo.dll=.\ ^
+    --include-data-files=d:\DEV\Py\XCode\ffcmd.ini=.\ ^
+    --output-dir=.\dist ^
+    --remove-output ^
+    --windows-icon-from-ico=.\XC_1.ico ^
+    xcode.py
 
 :Ende
-echo Fertig!
+echo Ende aus Maus!
+
+:Ende1
+rem jetzt ist aber Schluss
 
