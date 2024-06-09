@@ -4,7 +4,6 @@
 dist/
 __pycache__/
 build/
-comp/
 dist/
 idea/
 tests/
@@ -12,9 +11,7 @@ tests/
 *.log
 tst_*.py
 .qt_for_*
-ffcmd.ini.10Bit
-ffcmd.ini.bis20210704
-start4.cmd
+ffcmd.ini.*
 .vscode/launch.json
 *.dll
 *.pyd

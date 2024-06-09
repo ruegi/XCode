@@ -1,13 +1,13 @@
 [tool.poetry]
 name = "xcode"
-version = "2.10.0"
+version = "2.11.0"
 description = "Transcode Videos"
 authors = ["'ruegi' <'rg@rgilbert.de'>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
-pyqt6 = "^6.7.0"
+pyside6 = "^6.7.1"
 mediainfo = "^0.0.9"
 pysummarization = "^1.1.9"
 pymediainfo = "^6.1.0"
@@ -16,7 +16,6 @@ pillow = "^10.3.0"
 
 [tool.poetry.group.dev.dependencies]
 nuitka = "^2.2.3"
-pyinstaller = "^6.7.0"
 
 [build-system]
 requires = ["poetry-core"]

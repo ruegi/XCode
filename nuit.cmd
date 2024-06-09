@@ -1,7 +1,7 @@
 @echo off
 rem make Datei für XCode; das ist das aktuelle XCode Tool
-rem rg 2024-05-28
-pyuic6 -x XCodeUI.ui -o XCodeUI.py
+rem rg 2024-06-09
+pyside6-uic XCodeUI.ui -o XCodeUI.py
 rem pyuic6 -x transcodeWinUI.ui -o transcodeWinUI.py
 
 if "%1"=="full" goto EXE
@@ -10,17 +10,16 @@ goto Ende
 :EXE
 python -m nuitka --standalone ^
     --windows-disable-console ^
-    --enable-plugin=pyqt6 ^
+    --enable-plugin=pyside6 ^
     --include-data-files=d:\DEV\Py\XCode\.venv\Lib\site-packages\pymediainfo\MediaInfo.dll=.\ ^
     --include-data-files=d:\DEV\Py\XCode\ffcmd.ini=.\ ^
     --output-dir=.\dist ^
     --remove-output ^
-    --enable-plugin=pyqt6 ^
-    --windows-icon-from-ico=.\XC_1.ico xcode.py
+    --windows-icon-from-ico=.\XC_1.ico^
+    xcode.py
 
 
-
-if not exist .\dist\xcode.dist\xcode.exe goto Ende
+rem if not exist .\dist\xcode.dist\xcode.exe goto Ende
 rem copy .\XC_1.ico .\dist\XCode.dist
 echo .
 rem echo Kopiere 'ffcmd.ini' nach .\dist\XCode.dist ...

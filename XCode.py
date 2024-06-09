@@ -13,7 +13,7 @@
 #         frame-Zeile in der Statuszeile
 # 1.3     Info Typ als neue Spalte in der Tabelle;
 #         Fortschrittsbalken in der Spalte 'Status' der Tabelle
-# 2.0     Umstellung auf PyQt6; erweiterter Parameter -canvas_size ... in ffmpeg,
+# 2.0     Umstellung auf PySide6; erweiterter Parameter -canvas_size ... in ffmpeg,
 #         um den dvdsub-Fehler 'canvas_size(0:0) is too small for render' zu beheben
 # 2.1-2.2 siehe XCode2
 # 2.3     Aufgehübscht, videoFile.py und ffcmd.py eingebaut, frame-Zeile separat
@@ -28,8 +28,9 @@
 # 2.10    Erweiterung der Qualitäts-Anzeige (per reg-Ausdrücke) in Split-Parms
 # 2.11    Umstellung von pyinstaller auf nuitka Compile; size= wird jetzt mit Tausender-Punkten formatiert
 #
-#
-from PyQt6.QtWidgets import (
+# 3.0      Umstellung auf PySide6
+
+from PySide6.QtWidgets import (
     QMainWindow,
     QTextEdit,
     QTableWidget,
@@ -49,8 +50,8 @@ from PyQt6.QtWidgets import (
     QStyle,
 )
 
-from PyQt6.QtCore import QProcess, QObject, Qt
-from PyQt6.QtGui import QTextCursor, QFont, QIcon, QColor, QBrush
+from PySide6.QtCore import QProcess, QObject, Qt
+from PySide6.QtGui import QTextCursor, QFont, QIcon, QColor, QBrush
 
 from math import log as logarit
 from timeit import default_timer as timer
@@ -73,8 +74,8 @@ class Konstanten:  # Konstanten des Programms
     QUELLE = "C:\\ts\\"
     ZIEL = "E:\\Filme\\schnitt\\"
     LOGPATH = "E:\\Filme\\log\\"
-    VERSION = "2.11"
-    VERSION_DAT = "2024-05-29"
+    VERSION = "3.0"
+    VERSION_DAT = "2024-06-09"
     normalFG = QBrush(QColor.fromString("Gray"))
     normalBG = QBrush(QColor.fromString("White"))
     highFG = QBrush(QColor.fromString("White"))
@@ -1122,7 +1123,7 @@ QTextEdit {
 
     form.show()  # Show the form
 
-    app.exec()  # and execute the app
+    app.exec_()  # and execute the app
 
 
 if __name__ == "__main__":

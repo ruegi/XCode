@@ -3,11 +3,13 @@
 Transcodiert eine Liste von ts-Files (Filme) mittels ffmpeg.
 
 ## Als letztes benutztes Environment:  poetry mit python 3.11.7 ##
-##                                    (Kompiliert mittels nuitka) ##
+##                                     (Kompiliert mittels nuitka) ##
+##									   (Migriert von PyQt6 nach PySide6) ##
 ## Zentral App: xcode.py ##
-Die App xcode2.py war ein Versuch mit mehreren parallelen Transcodes.
+
+(Die App xcode2.py war ein Versuch mit mehreren parallelen Transcodes.
 Das war ein Fehlschlag, weil jeder der n xcodes das n-fache seiner Zeit benötigte, 
-also gab es keinen Performance Gewinn.
+also gab es keinen Performance Gewinn.)
 
 Die ffmpeg Parameter wurden durch eifriges Testen und mit viel Hilfe aus dem Netz ermttelt.
 (Hilfsmittel dazu waren ab-av1 und ffmpeg, mit denen ich testweise kodieren und den jeweiligen vmaf bestimmen konnte.
@@ -54,5 +56,8 @@ Die neuen Parameter {canvas_size} und {Untertitel} vermeiden einen Fehler, den d
 Nach dem Wechsel nach AV1 Encoder waren enige Anpassungen vor allem im Auffangen der Fortschrtts-Meldungen nötg.
 Dazu hatte ch festgestellt, dass es Konvertierungen von h265->AV1 gibt, die bei meinen Parametern die Filmdatei vergrößerten.
 Wenn das festgestllt wird, wird die Konvertierung durh eine einfaches ffmpeg COPY ersetzt, das das Kontainerformat nur ändert und in der Regel kleiner als das Original ist. Das wird in der Log-Datei protokolliert.
+
+2024-06-08
+Migration von PyQt6 nach PySide6
 
 ruegi
