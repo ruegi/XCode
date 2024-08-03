@@ -29,6 +29,7 @@
 # 2.11    Umstellung von pyinstaller auf nuitka Compile; size= wird jetzt mit Tausender-Punkten formatiert
 #
 # 3.0      Umstellung auf PySide6
+# 3.1      Fehler in der Anzeige des Qualitäts-Faktors behoben
 
 from PySide6.QtWidgets import (
     QMainWindow,
@@ -74,8 +75,8 @@ class Konstanten:  # Konstanten des Programms
     QUELLE = "C:\\ts\\"
     ZIEL = "E:\\Filme\\schnitt\\"
     LOGPATH = "E:\\Filme\\log\\"
-    VERSION = "3.0"
-    VERSION_DAT = "2024-06-09"
+    VERSION = "3.1"
+    VERSION_DAT = "2024-08-03"
     normalFG = QBrush(QColor.fromString("Gray"))
     normalBG = QBrush(QColor.fromString("White"))
     highFG = QBrush(QColor.fromString("White"))
@@ -227,10 +228,15 @@ class Fortschritt:
         if parm in self.parmListe:
             self.pwDic[parm] = wert
 
-        if re.search(
-            r"stream_\d_\d_q", parm
-        ):  # Ausdrücke wie "stream_0_0_q" oder "stream_0_1_q"
-            self.pwDic["q"] = wert
+        if parm.startswith("stream_"):
+            # print(f"{parm}=")
+            if re.search(
+                r"stream_\d_\d_q", parm
+            ):  # Ausdrücke wie "stream_0_0_q" oder "stream_0_1_q"
+                # print("Erkannt!")
+                self.pwDic["q"] = wert
+            # else:
+            # print("nicht erkannt")
 
         if parm == "progress":  # explicit is better than implicit
             return True
@@ -406,6 +412,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
             "frame",
             "fps",
             "stream_0_0_q",
+            "stream_0_1_q",
             "bitrate",
             "total_size",
             "out_time_us",
@@ -643,8 +650,8 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
 
         # den Fortschrittsbalken abschließen
         row = self.tsliste.lastPos
-        itm = self.tbl_files.item(row, 4)
-        itm.setData(Qt.ItemDataRole.UserRole + 1000, 100)
+        # itm = self.tbl_files.item(row, 4)
+        # itm.setData(Qt.ItemDataRole.UserRole + 1000, 100)
         self.tsliste.lastObj.progress = 100
         self.pbarpos += self.incr
         self.probar1.setValue(round(self.pbarpos))
@@ -1123,7 +1130,7 @@ QTextEdit {
 
     form.show()  # Show the form
 
-    app.exec_()  # and execute the app
+    app.exec()  # and execute the app
 
 
 if __name__ == "__main__":
