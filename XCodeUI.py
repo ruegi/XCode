@@ -3,7 +3,7 @@
 ################################################################################
 ## Form generated from reading UI file 'XCodeUI.ui'
 ##
-## Created by: Qt User Interface Compiler version 6.7.1
+## Created by: Qt User Interface Compiler version 6.8.2
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
@@ -27,7 +27,7 @@ class Ui_MainWindow(object):
             MainWindow.setObjectName(u"MainWindow")
         MainWindow.resize(1280, 800)
         icon = QIcon()
-        icon.addFile(u"XC.ico", QSize(), QIcon.Normal, QIcon.Off)
+        icon.addFile(u"XC.ico", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
         MainWindow.setWindowIcon(icon)
         self.centralwidget = QWidget(MainWindow)
         self.centralwidget.setObjectName(u"centralwidget")

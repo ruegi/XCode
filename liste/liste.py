@@ -72,14 +72,11 @@ class liste():
         if self.size > 0:
             if self.lastPos == self.size - 1:  		# Ende erreicht; lastPos bleibt auf size-1
                 self.lastObj = None
-            # elif self.lastPos == - 1:				# Anfang; erstes Element ausliefern
-            #     self.lastPos = 0
-            #     self.lastObj = self.liste[self.lastPos]
-            #
+                return None
             else:									# das nächste Element ausliefern
                 self.lastPos += 1
                 self.lastObj = self.liste[self.lastPos]
-            return self.lastObj
+                return self.lastObj
         else:
             return None
 
@@ -195,6 +192,14 @@ class liste():
             return self.liste[row]
         else:
             return None
+    
+    def sort(self, key=None):
+        if not key:
+            return
+        else:
+            self.liste.sort(key=key)
+            _ = self.findFirst()
+            
 
 
 if __name__ == '__main__':

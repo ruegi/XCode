@@ -21,16 +21,15 @@ goto Ende
 python -m nuitka --standalone ^
     --windows-disable-console ^
     --enable-plugin=pyside6 ^
-    --include-data-files=d:\DEV\Py\XCode\.venv\Lib\site-packages\pymediainfo\MediaInfo.dll=.\ ^
-    --include-data-files=d:\DEV\Py\XCode\ffcmd.ini=.\ ^
-    --output-dir=.\dist ^
+    @REM --include-data-files=d:\DEV\Py\XCode\.venv\Lib\site-packages\pymediainfo\MediaInfo.dll=.\ ^
+    --include-data-files=./ffcmd.ini=./ ^
+    --output-dir=./dist ^
     --remove-output ^
-    --windows-icon-from-ico=.\XC_1.ico ^
+    --windows-icon-from-ico=./XC_1.ico ^
     xcode.py
 
 :Ende
 echo Ende aus Maus!
 
 :Ende1
-rem jetzt ist aber Schluss
-
+@rem jetzt ist aber Schluss

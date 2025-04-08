@@ -1,4 +1,6 @@
 [tool.poetry]
+package-mode = false
+# POETRY_VIRTUALENVS_IN_PROJECT = true
 name = "xcode"
 version = "3.0"
 description = "Transcode Videos"
@@ -8,10 +10,7 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
 pyside6 = "^6.7.1"
-mediainfo = "^0.0.9"
-pysummarization = "^1.1.9"
-pymediainfo = "^6.1.0"
-pillow = "^10.3.0"
+dotenv = "^0.9.9"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -20,3 +19,7 @@ nuitka = "^2.2.3"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[virtualenvs]
+create = true
+in-project = true

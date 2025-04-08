@@ -30,7 +30,36 @@
 #
 # 3.0      Umstellung auf PySide6
 # 3.1      Fehler in der Anzeige des Qualitäts-Faktors behoben
-
+# 3.2      Umstellung von MediaInfo auf ffmpeg.python (in ffcmd.py) und Verallgemeinerung auf Linux & Win
+# 3.3      Umstellung von ffmpeg.python (in ffcmd.py) auf openCV
+# 3.4      Einbindung der '.env' Logik, um Laufzeitabhängige Varibalen zu füllen
+# 3.5      Umstellung wieder zurück auf direkten Gebrauch von ffprobe (in ffcmd.py) und
+#          Änderung der .env-Datei in .env.xcode
+#
+#           Konfig unter Linux:
+#          - das Programm XCode.bin zusammen mit ffcmd.ini und .env.xcode liegen im Ordner xcode z.B. in ~/.local/bin
+#          - die Umgebungsvariablen werden in der Datei ~/.local/bin/.env.xcode gespeichert
+#          - passende xcode.desktop-Datei im Ordner ~/.local/share/applications/xcode.desktop
+#            hier ein Beispiel für seinen Inhalt:
+#           [Desktop Entry]
+#           Comment[de_DE]=Videos Transcodieren
+#           Comment=Videos Transcodieren
+#           Exec=/home/ruegi/.local/bin/xcode/XCode.bin
+#           GenericName[de_DE]=Videos Transcodieren
+#           GenericName=Videos Transcodieren
+#           Icon=/home/ruegi/.local/bin/xcode/XC_1.ico
+#           MimeType=
+#           Name[de_DE]=XCode
+#           Name=XCode
+#           NoDisplay=false
+#           Path=/home/ruegi/.local/bin/xcode
+#           StartupNotify=true
+#           Terminal=false
+#           TerminalOptions=
+#           Type=Application
+#           X-KDE-SubstituteUID=false
+#           X-KDE-Username=
+#
 from PySide6.QtWidgets import (
     QMainWindow,
     QTextEdit,
@@ -66,26 +95,37 @@ import re
 
 import liste.liste as liste  # hält eine Liste der umzuwandelnden Dateien
 
-import videoFile
+# import videoFile
 import ffcmd
 import XCodeUI  # Hauptfenster; mit pyuic aus der UI-Datei konvertiert
 
+# env Logik
+from dotenv import dotenv_values
+
+# import pprint
 
 class Konstanten:  # Konstanten des Programms
-    QUELLE = "C:\\ts\\"
-    ZIEL = "E:\\Filme\\schnitt\\"
-    LOGPATH = "E:\\Filme\\log\\"
-    VERSION = "3.1"
-    VERSION_DAT = "2024-08-03"
+    if sys.platform == "win32":
+        QUELLE = "C:\\ts\\"
+        ZIEL = "E:\\Filme\\schnitt\\"
+        LOGPATH = "E:\\Filme\\log\\"
+        CODEPAGE = "cp1252"
+    else:   # LINUX
+        QUELLE = "~/Videos/"
+        ZIEL = "~/Videos/schnitt/"
+        LOGPATH = "~/Videos/log/"
+        CODEPAGE = "utf8"
+
+    VERSION = "3.5"
+    VERSION_DAT = "2025-04-08"
     normalFG = QBrush(QColor.fromString("Gray"))
     normalBG = QBrush(QColor.fromString("White"))
     highFG = QBrush(QColor.fromString("White"))
     highBG = QBrush(QColor.fromString("Chocolate"))
     OkFG = QBrush(QColor.fromString("Green"))
-    iconFile = "D:\\Dev\\Py\\XCode\\XC_1.ico"
+    iconFile = "XC_1.ico"
     logProgress = False  # 4 debug
-    ffmpegLog = r"C:\temp\ffmpegLog"
-
+    ffmpegLog = LOGPATH + "/ffmpegDebug"
 
 class ladeFenster(QWidget):
     """
@@ -109,6 +149,8 @@ class ladeFenster(QWidget):
         self.btn_abbruch = QPushButton("Abbruch", self)
         self.btn_abbruch.clicked.connect(self.abbruchApp)
         layout.addWidget(self.btn_abbruch)
+        # self.setWindowIcon(QIcon(os.path.join(application_path, Konstanten.iconFile)))
+        self.setWindowIcon(QIcon(Konstanten.iconFile))
 
     def abbruchApp(self):
         self.callerWin.processkilled = True
@@ -127,7 +169,7 @@ class tsEintrag:
         self.status = status
         self.progress = 0
         self.copyMode = False
-        self.video = videoFile.videoFile(fullpath)
+        self.video = ffcmd.getVideoSpecs(fullpath)    # ein Dict mit Video-Attributen
         self.org_len = 0
         self.xcode_len = 0
 
@@ -184,7 +226,7 @@ class ProgressDelegate(QStyledItemDelegate):
         style.drawControl(
             QStyle.ControlElement.CE_ProgressBar, opt, painter, option.widget
         )
-        print("Nach drawControl")
+        # print("Nach drawControl")
 
 
 class Fortschritt:
@@ -224,6 +266,8 @@ class Fortschritt:
             return None
 
         parm, wert = pwListe
+        if wert is None:
+            wert = ""
 
         if parm in self.parmListe:
             self.pwDic[parm] = wert
@@ -256,6 +300,10 @@ class Fortschritt:
         except:
             sz = 99
         szt = f"{sz:,}".replace(",", ".")
+
+        # for key in self.pwDic.keys():
+        #     print(f"self.pwDic[{key}]=", self.pwDic[key])
+        # print("--------------")
         txt = f">  frame={self.pwDic['frame']}   fps={self.pwDic['fps']}   q={self.pwDic['q']}   size={szt}   time={self.pwDic['out_time']}   bitrate={self.pwDic['bitrate']}   speed={self.pwDic['speed']}"
         return txt
 
@@ -269,20 +317,22 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
 
         # Instanz-Variablen
         self.ff = ffcmd.ffmpegcmd()
-        self.frameCount = 0
         self.lastFrameInfo = ""
         self.saveTxt = ""  # für -onReadData
         self.saveTxtAnz = 0  # für -onReadData
         self.fortschritt = (
             None  # hält das Fortschritt Objekt des aktuell codierten Film
         )
+        self.frameCount = 0         # ANz. Frames des aktuellen Films
+        self.dauer = 0.0            # zeitdauer des aktuellen Films
+        self.isFirst = True
         self.process = None
         self.processkilled = False
         self.currentX = True  # Zustamd der X-Spalte; True=alle aktiviert
         self.quelle = Konstanten.QUELLE
         self.ziel = Konstanten.ZIEL
         self.logpath = Konstanten.LOGPATH
-        self.tsliste = liste.liste()  # Liste der ts-Objekte
+        self.tsliste = liste.liste()  # ein Objekt mit einer Liste der ts-Objekte
         self.running = False  # im Prozess aktiv
         self.stopNext = False  # HalteSignal
         #        self.Zeile = 0         # aktuelle Zeile (0 - (n-1))
@@ -338,12 +388,13 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.edit.setText("Benutzte ffcmd.ini:\n\n" + self.ff.usedIni + "\n\n")
 
         self.led_pfad.setDisabled(True)
+        self.led_pfad.setText(Konstanten.QUELLE)
         self.probar1.setValue(0)
         self.probar2.setValue(0)
 
         # connects
         self.btn_ende.clicked.connect(self.progende)
-        self.btn_start.clicked.connect(self.convert)
+        self.btn_start.clicked.connect(self.convertStart)
         self.tbl_files.doubleClicked.connect(self.toggleX)
         header.sectionDoubleClicked.connect(self.toggleAllX)
 
@@ -379,7 +430,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.statusbar.showMessage("{0} Dateien geladen!".format(self.tsliste.size))
 
     def onReadData(self):
-        """fängt die Meldungen von ffmpeg ab und bringt sie passen zur anzeige"""
+        """fängt die Meldungen von ffmpeg ab und bringt sie passend zur Anzeige"""
         #
         # -- seqAusgabe.txt
         # frame=0
@@ -423,8 +474,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
             "speed",
             "progress",
         ]
-        # txt = self.process.readAllStandardOutput().data().decode('cp850')
-        txt = self.process.readAllStandardOutput().data().decode("cp1252")
+        txt = self.process.readAllStandardOutput().data().decode(Konstanten.CODEPAGE)
         if Konstanten.logProgress:
             # jeder Block wird mit einem §\n abgeschlossen, jedes \r wird durch $ sichtbar gemacht
             with open(Konstanten.ffmpegLog, "a") as flog:
@@ -465,6 +515,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
                     self.infoZeilenAusgeben(zeile)
         return
 
+
     def infoZeilenAusgeben(self, zeile):
         """
         gibt die InfoZeilen im Fenster self.edit aus
@@ -485,30 +536,76 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         return
 
     def anzeigeFortschritt(self):
-        try:
-            anzFrames = int(self.fortschritt.getParm("frame"))
-        except:
-            anzFrames = None
-            return
-        if anzFrames > self.frameCount:
-            anzFrames = self.frameCount
-        # if not self.frameCount:
-        #     print(f"{frameCount=}")
+        # Berechnung der Prozentzahlen
+        # ab 03.2025 nur noch nach den Zeit;
+        # die Berechnung nach Frames ist zu instabil (mal bibt es 'anzFrames', mal keinen aktuellen Frame)
+        # anzFr = self.fortschritt.getParm("frame")
+        # try:
+        #     anzFrames = int(anzFr)
+        # except ValueError:
+        #     anzFrames = "N/A"
+        # if anzFr is None or anzFr == '':
+        #     anzFrames = "N/A"
+        # else:
+        #     anzFrames = int(anzFr)
+        # if (self.frameCount is None) or (anzFr is None):     # dann über die Zeit rechnen
+        #     us_i = int(self.fortschritt.getParm("out_time_us"))
+        #     zPunkt = float(us_i/1000000)
+        #     proD = zPunkt / self.dauer
+        # else:
+        #     try:
+        #         proD = anzFrames / self.frameCount
+        #     except:
+        #         anzFr = None
 
-        proD = anzFrames / self.frameCount
-        proI = int(proD * 100)
+        # prüfen, was da ist
+        # default: über die Frames den Fortschritt bestimmen
+        def toInt(wert, default=0):
+            try:
+                i = int(wert)
+            except ValueError:
+                i = default
+            return i
 
-        # Anzeige der Position
-        self.probar2.setValue(anzFrames)
+        anzFr = toInt(self.fortschritt.getParm("frame"), default=None)
+        us_i = toInt(self.fortschritt.getParm("out_time_us"))
+        if not anzFr is None:
+            proD =  anzFr / self.frameCount
+        elif not us_i is None:
+            zPunkt = float(us_i/1000000)
+            proD = zPunkt / self.dauer
+        else:   # kann den Fortschritt nicht bestimmen
+            proD = -1.0
+
+        # us_i = int(self.fortschritt.getParm("out_time_us"))
+        # zPunkt = float(us_i/1000000)
+        # proD = zPunkt / self.dauer
+
+        if proD > 1:
+            proD = 1
+
+        pro100 = round(proD * 100, 1)
+
+        # Anzeige der Position in probar2
+        self.probar2.setValue(round(pro100))
+        # self.probar2.setFormat(f"{proD*100:3.2f}" + " %")
+
+        # if self.frameCount is None:
+        #     self.probar2.setValue(round(zPunkt))
+        #     self.probar2.setFormat(f"{proD*100:3.2f}" + " %")
+        # else:
+        #     self.probar2.setValue(anzFrames)
+        #     self.probar2.setFormat(f"{anzFrames}" + " fr.")
+
         pb1wert = self.pbarpos + proD * self.incr
         self.probar1.setValue(round(pb1wert))
 
         row = self.tsliste.lastPos
         itm = self.tbl_files.item(row, 4)
-        itm.setData(Qt.ItemDataRole.UserRole + 1000, proI)
+        # itm.setData(Qt.ItemDataRole.UserRole + 1000, pro100)
         itm.setTextAlignment(Qt.AlignmentFlag.AlignCenter)  # change the alignment
         itm.setText(f"{proD*100:3.2f}" + " %")
-        self.tsliste.lastObj.progress = proI
+        self.tsliste.lastObj.progress = pro100
         txt = self.fortschritt.fortschritt_fomatieren()
         self.lbl_frames.setText(txt)
         self.lastFrameInfo = txt
@@ -529,6 +626,9 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
                 Datei.toggleXObj()
                 self.refreshTableRow(row)  # kein Neuaufbau
                 self.tbl_files.selectRow(row)
+        # self.tsliste.findFirst()
+        self.tbl_files.selectRow(0)
+
         return
 
     def toggleX(self):
@@ -643,6 +743,13 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.probar2.setRange(0, 1)  # stoppt hin-her
         self.probar2.setValue(0)  # ende der Anzeige
 
+        # Einfügung 2024-08-03
+        row = self.tsliste.lastPos
+        itm = self.tbl_files.item(row, 4)
+        # itm.setData(Qt.ItemDataRole.UserRole + 1000, 100)  # 100% anzeigen
+        itm.setTextAlignment(Qt.AlignmentFlag.AlignCenter)  # change the alignment
+        itm.setText("100 %")
+
         # weitermachen oder aufhören
         if self.stopNext:  # sofort aufhören
             self.ende_verarbeitung()
@@ -650,8 +757,9 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
 
         # den Fortschrittsbalken abschließen
         row = self.tsliste.lastPos
-        # itm = self.tbl_files.item(row, 4)
+        itm = self.tbl_files.item(row, 4)
         # itm.setData(Qt.ItemDataRole.UserRole + 1000, 100)
+
         self.tsliste.lastObj.progress = 100
         self.pbarpos += self.incr
         self.probar1.setValue(round(self.pbarpos))
@@ -694,21 +802,33 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
     # Funktionen
 
     def ladeFiles(self, ts_pfad):  # lädt die ts-Files
+
+        # # hilfs-fun zum sortieren
+        # def get_filmName(obj):
+        #     return obj.name
+
         ladeWin = ladeFenster(self)
         ladeWin.show()
-        # Liste der ts-files laden
-        i = 0
+        # Liste der ts-files vorladen
+        nlst = []
         for entry in os.scandir(ts_pfad):
             if entry.is_file():
                 fname, fext = os.path.splitext(entry.name)
                 if fext in [".ts", ".mpg", ".mp4", ".mkv", ".mv4", ".mpeg", ".avi"]:
-                    i += 1
-                    fullpath = os.path.join(ts_pfad, entry.name)
-                    ladeWin.setZeile(f"({i}) - {fullpath}")
-                    tse = tsEintrag(i, fullpath, entry.name, fext, "warten...  ")
-                    self.tsliste.append(tse)
-                    self.log.log("Lade: {0:2}: {1}".format(i, entry.name))
-        self.tsliste.findFirst()
+                    nlst.append(entry.name)
+
+        nlst.sort()     # nach Name sortieren
+        i = 0
+        for vname in nlst:
+            i += 1
+            fullpath = os.path.join(ts_pfad, vname)
+            ladeWin.setZeile(f"({i}) - {fullpath}")
+            _, fext = os.path.splitext(entry.name)
+            # self, nr, fullpath, name, ext, status
+            tse = tsEintrag(i, fullpath, vname, fext, "warten...  ")
+            self.tsliste.append(tse)
+            self.log.log("Lade: {0:2}: {1}".format(i, vname))
+
         self.refreshTable(True)
         ladeWin.close()
         return self.tsliste.size
@@ -725,10 +845,10 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
                 self.tbl_files.setItem(nr, 0, QTableWidgetItem(str(ts.nr)))
                 self.tbl_files.setItem(nr, 1, QTableWidgetItem(ts.X))
                 self.tbl_files.setItem(nr, 2, QTableWidgetItem(ts.name))
-                self.tbl_files.setItem(nr, 3, QTableWidgetItem(ts.video.typ))
+                self.tbl_files.setItem(nr, 3, QTableWidgetItem(ts.video["typ"]))
                 self.tbl_files.setItem(nr, 4, QTableWidgetItem(ts.progress))
                 itm = self.tbl_files.item(nr, 4)
-                itm.setData(Qt.ItemDataRole.UserRole + 1000, 0)
+                # itm.setData(Qt.ItemDataRole.UserRole + 1000, 0)
                 self.tbl_files.setItem(nr, 5, QTableWidgetItem(ts.status))
                 # zentrieren
                 itm = self.tbl_files.item(nr, 0)
@@ -784,12 +904,42 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         itm.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         self.tbl_files.selectRow(row)
 
+
+    def KonverterLoop(self):
+        """
+        steuert die Konvertierung
+        """
+        for rowNr in range(self.tsliste.size):
+            ZielDatei = self.tsliste.getRow(rowNr)
+
+            if not ZielDatei.X == "X":
+                ZielDatei.setStatus("skipped")
+            else:
+                self.convert(rowNr, ZielDatei)
+
+
+    def convertStart(self):
+        # starthilfe
+        self.tsliste.findFirst()
+        self.convert()
+
+
     def convert(self):
         """
         konvertiert eine ts-Datei über einen separaten Prozess
         """
         row = self.tsliste.lastPos
         Datei = self.tsliste.lastObj
+
+        # print(f"{self.tsliste.size=}")
+        # print(f"{self.tsliste.lastPos=}")
+        # print(f"{self.tsliste.lastObj.name=}")
+        # print(f"{row=}")
+        # pprint.pprint(f"{Datei=}")
+
+        if Datei is None:   # z.B. None
+            self.ende_verarbeitung()        # PANIC
+
         # keine Verarbeitung, falls kein X gesetzt wurde
         if not Datei.X == "X":
             Datei.setStatus("skipped")
@@ -806,10 +956,8 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         fname, _ = os.path.splitext(Datei.name)
         self.ts_nach = self.ziel + fname + ".mkv"
         self.ts_von = Datei.fullpath
-        self.log.log("\nStart Konvertierung von {0} . . .".format(self.ts_von))
-        self.log.log(
-            f"Auflösung: {Datei.video.typ} ({Datei.video.weite} x {Datei.video.hoehe})"
-        )
+        self.log.log(f"\nStart Konvertierung von {self.ts_von} . . .")
+        self.log.log(f"Auflösung: {Datei.video["typ"]} ({Datei.video["weite"]} x {Datei.video["hoehe"]})")
         self.statusbar.showMessage(
             "Umwandlung {0} -> {1}".format(self.ts_von, self.ts_nach)
         )
@@ -822,38 +970,55 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
             self.ts_von, self.ts_nach, nurCopy=self.redoWithCopy
         )
         self.redoWithCopy = False
-        self.frameCount = Datei.video.frameCount
+        # fr = Datei.video["frameCnt"]
+        # self.frameCount = None if fr is None else int(fr)
+        self.frameCount = Datei.video["frameCnt"]
+        self.dauer = Datei.video["duration"]
         self.fortschritt = Fortschritt()
-        self.log.log("ffmpeg Aufruf: {0}".format(self.lastcmd))
+        self.log.log("ffmpeg Aufruf: {0}".format(self.lastcmd[0]))
         self.statusbar.showMessage(
             "Umwandlung {0} -> {1}".format(self.ts_von, self.ts_nach)
         )
 
-        if self.frameCount == 0:
-            self.probar2.setTextVisible(False)
-            self.probar2.setRange(0, 0)  # start hin-her
-            self.probar2.setValue(0)
-        else:
-            self.probar2.setTextVisible(True)
-            self.probar2.setRange(0, self.frameCount)
-            self.probar2.setFormat("%v")
-            self.probar2.setValue(0)
+        # Init des probar2
+        self.probar2.setTextVisible(True)
+        self.probar2.setRange(0.0, 100.0)
+        self.probar2.setFormat("%p %")
+        self.probar2.setValue(0)
+        # if self.frameCount:
+        #     self.probar2.setTextVisible(True)
+        #     self.probar2.setRange(0, self.frameCount)
+        #     self.probar2.setFormat("%v")
+        #     self.probar2.setValue(0)
+        # else:
+        #     self.probar2.setTextVisible(True)
+        #     self.probar2.setRange(0, self.dauer)
+        #     self.probar2.setFormat("%v")
+        #     self.probar2.setValue(0)
+
+
+            # self.probar2.setTextVisible(False)
+            # self.probar2.setRange(0, 0)  # start hin-her
+            # self.probar2.setValue(0)
 
         # # Prozess starten
+        cmdParms = self.lastcmd[1]
+        prog = cmdParms[0]
+        cmdParms = cmdParms[1:] # {FFMPEG} abtrennen
         self.running = True
         self.prstart = timer()
         self.process = QProcess()
         self.process.finished.connect(self.onFinished)
         self.process.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
         self.process.readyReadStandardOutput.connect(self.onReadData)
-        self.process.start(self.lastcmd)
+        self.process.start(prog, cmdParms)
         if Konstanten.logProgress:
             with open(Konstanten.ffmpegLog, "a") as flog:
                 flog.write(
                     f"\n---------- [{self.ts_von}] ------------------------------------\n"
-                    + "Das Ende eines eingelesenen Blocks wird mit '§CRLF' gekennzeichnet,"
-                    + "Ein einfaches 'CR' wird mit '$' markiert"
-                    + "-" * 80
+                    + "Das Ende eines eingelesenen Blocks wird mit '§CRLF' gekennzeichnet,\n"
+                    + "Ein einfaches 'CR' wird mit '$' markiert\n"
+                    + "-" * 80 + "\n"
                 )
 
     def progende(self):  # Ende Proc mit Nachfrage
@@ -987,6 +1152,8 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         return (txt, isOK)
 
 
+
+
 def format_size(flen: int):
     """Human friendly file size"""
     unit_list = list(zip(["bytes", "kB", "MB", "GB", "TB", "PB"], [0, 3, 3, 3, 3, 3]))
@@ -1042,10 +1209,10 @@ def main():
 
     StyleSheet = """
 QMainWindow {
-    background-color: #fff5cc;
+    background-color: saddlebrown;
 }
 QTableWidgt {
-    background-color: DimGray;
+    background-color: Gray;
 }
 #tbl_files {
     border: 1px solid Chocolate;
@@ -1058,13 +1225,14 @@ QTableWidgt {
     }
 
 #lbl_version {
-    background-color: #fff5cc;
+    background-color: saddlebrown;
 }
+
 
 #lbl_frames {
     border: 1px solid Chocolate;
     border-radius: 5 px;
-    background-color: #E0E0E0;
+    background-color: Chocolate;
 }
 
 
@@ -1119,7 +1287,8 @@ QTextEdit {
     border: 1px solid Chocolate;
     border-radius: 5px;
 }
-"""
+""" # background-color: #fff5cc;
+
 
     app = QApplication(sys.argv)
     app.setStyleSheet(StyleSheet)
@@ -1134,4 +1303,12 @@ QTextEdit {
 
 
 if __name__ == "__main__":
+    # print(f"ArbeitsDir: {os.getcwd()}")
+
+    config = dotenv_values(".env.xcode")
+    Konstanten.QUELLE = config["QUELLE"]
+    Konstanten.ZIEL = config["ZIEL"]
+    Konstanten.LOGPATH = config["LOGPATH"]
+    Konstanten.CODEPAGE = config["CODEPAGE"]
+
     main()  # run the main function

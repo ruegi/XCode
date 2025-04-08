@@ -2,13 +2,15 @@
 
 Transcodiert eine Liste von ts-Files (Filme) mittels ffmpeg.
 
-## Als letztes benutztes Environment:  poetry mit python 3.11.7 ##
-##                                     (Kompiliert mittels nuitka) ##
-##									   (Migriert von PyQt6 nach PySide6) ##
-## Zentral App: xcode.py ##
+## Essentials
 
-(Die App xcode2.py war ein Versuch mit mehreren parallelen Transcodes.
-Das war ein Fehlschlag, weil jeder der n xcodes das n-fache seiner Zeit benötigte, 
+Als letztes benutztes Environment:  *poetry* mit python 3.12.7
+                                    (Kompiliert mittels *nuitka*)
+                                    (Migriert von PyQt6 nach *PySide6*)
+Zentrale App: *xcode.py*
+
+(Die App xcode2.py war ein Versuch mit mehreren parallelen Transcodes mittels nvenc.
+Das war ein Fehlschlag, weil jeder der n xcodes das n-fache seiner Zeit benötigte,
 also gab es keinen Performance Gewinn.)
 
 Die ffmpeg Parameter wurden durch eifriges Testen und mit viel Hilfe aus dem Netz ermttelt.
@@ -16,10 +18,10 @@ Die ffmpeg Parameter wurden durch eifriges Testen und mit viel Hilfe aus dem Net
 Für mich war ein VMAF Mindestwert von 94% für eine erfolgreiche Konvertierung notwendig.)
 
 XCode liest eine Liste von *.ts (*.mpeg etc) Files ein und transcodiert sie nach drücken von "Start" in einen ZielOrdner.
-Die GUI war ursprünglch ein PyQT5 Projekt, jetzt ist es nach PyQt6 gewechselt.
+Die GUI war ursprünglch ein PyQT5 Projekt, dann war es nach PyQt6 gewechselt. Zuletzt habe ich pySide6 eingespeannt.
 Es schreibt dabei eine Logdatei und zeigt den Fortschritt in einem GUI Fenster an.
 
-XCode nutzt zum transcodieren die Progamm-Suite von ffmpeg, die es in C:\\ffmpeg erwartet.
+XCode nutzt zum transcodieren die Progamm-Suite von ffmpeg.
 Der Transcode wird durch die Ini-Datei "ffcmd.ini" gesteuert, allerdings wird dieser Befehl noch je nach Codierung des Quell-Films in ffmcd.py angepasst.
 Einzelne Filme können per Doppelklick in der GUI für das transkodieren ab- und angeschaltet werden.
 
@@ -27,8 +29,9 @@ Probleme:
 p1: der Fortschritt wurde ursprünglich in jeder Zeile der BrowserTabelle in einem FortschrittsBalken angezeigt.
     Bei Neukompilierung funktionierte des unter PyQt6 nicht mehr. Eine ALternative hatte ich nicht gefunden, also habe ich nur eine Prozentzahl angezeigt.
 p2: Beim Kompilieren mittels pyInstaller wird jetzt stets ein VirenVerdacht ausgeworfen, das den Vorgang stoppt.
-    Ursuche unklar.
-    
+    Ursuche unklar. Der Wechsel nach 'nuitka' löste das Problem
+
+### Zur Historie
 
 2021-04-10:
 Das derzeitige Hauptprogramm ist XCode_process_mitliste.py, der in zukünftigen Versionen einfach nur XCode.py heißen wird.
@@ -60,4 +63,7 @@ Wenn das festgestllt wird, wird die Konvertierung durh eine einfaches ffmpeg COP
 2024-06-08
 Migration von PyQt6 nach PySide6
 
-ruegi
+2025-03:
+Entfernen der Abhängigkeit von MediaInfo und danach von ffmpeg-python. Die Video Attribute werden statt dessen mittes openCV ausgelesen. Das ist erheblich verläßlicher in Bezug sug frameCount, um den Fortschritt zu formatieren.
+
+ruegi. 2025-03-26

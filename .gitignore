@@ -7,6 +7,8 @@ build/
 dist/
 idea/
 tests/
+tests/*.py
+av1test/
 *.png
 *.log
 tst_*.py
@@ -14,4 +16,9 @@ tst_*.py
 ffcmd.ini.*
 .vscode/launch.json
 *.pyd
-
+.env
+.env.xcode
+tests/ffmpy.py
+tests/Infpy.py
+tests/pytime.py
+tests/win2.py
