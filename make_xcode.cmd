@@ -17,16 +17,27 @@ goto Ende1
 if "%1"=="full" goto EXE
 goto Ende
 
+
 :EXE
-python -m nuitka --standalone ^
-    --windows-disable-console ^
-    --enable-plugin=pyside6 ^
-    @REM --include-data-files=d:\DEV\Py\XCode\.venv\Lib\site-packages\pymediainfo\MediaInfo.dll=.\ ^
-    --include-data-files=./ffcmd.ini=./ ^
-    --output-dir=./dist ^
-    --remove-output ^
-    --windows-icon-from-ico=./XC_1.ico ^
+@REM --include-data-files=d:\DEV\Py\XCode\.venv\Lib\site-packages\pymediainfo\MediaInfo.dll=.\ ^
+@REM --standalone ^
+@REM --include-data-files=./ffcmd.ini=./ ^
+python -m nuitka^
+    --windows-console-mode=disable^
+    --enable-plugin=pyside6^
+    --follow-imports^
+    --output-dir=.\dist^
+    --remove-output^
+    --windows-icon-from-ico=./XC_1.ico^
+    --standalone^
     xcode.py
+
+echo Env kopieren...
+copy .\.env.xcode.* .\dist\xcode.dist
+
+echo ffcmd.ini kopieren...
+copy .\ffcmd.ini .\dist\xcode.dist
+
 
 :Ende
 echo Ende aus Maus!

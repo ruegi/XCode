@@ -4,7 +4,8 @@ Transcodiert eine Liste von ts-Files (Filme) mittels ffmpeg.
 
 ## Essentials
 
-Als letztes benutztes Environment:  *poetry* mit python 3.12.7
+Als letztes benutztes Environment:  uv unter python 3.13.5
+                                    (vorletztes war *poetry* mit python 3.12.7)
                                     (Kompiliert mittels *nuitka*)
                                     (Migriert von PyQt6 nach *PySide6*)
 Zentrale App: *xcode.py*
@@ -28,8 +29,11 @@ Einzelne Filme können per Doppelklick in der GUI für das transkodieren ab- und
 Probleme:
 p1: der Fortschritt wurde ursprünglich in jeder Zeile der BrowserTabelle in einem FortschrittsBalken angezeigt.
     Bei Neukompilierung funktionierte des unter PyQt6 nicht mehr. Eine ALternative hatte ich nicht gefunden, also habe ich nur eine Prozentzahl angezeigt.
+    Lösung: Ich zeige nur noch die jeweiligen Prozentwerte in der Tabelle an
+
 p2: Beim Kompilieren mittels pyInstaller wird jetzt stets ein VirenVerdacht ausgeworfen, das den Vorgang stoppt.
-    Ursuche unklar. Der Wechsel nach 'nuitka' löste das Problem
+    Ursuche unklar.
+    Lösung: Der Wechsel nach 'nuitka' löste das Problem
 
 ### Zur Historie
 
@@ -64,6 +68,17 @@ Wenn das festgestllt wird, wird die Konvertierung durh eine einfaches ffmpeg COP
 Migration von PyQt6 nach PySide6
 
 2025-03:
+<<<<<<< HEAD
+Entfernen der Abhängigkeit von MediaInfo und danach von ffmpeg-python. Die Video Attribute werden statt dessen mittels openCV ausgelesen. Das ist erheblich verläßlicher in Bezug auf frameCount, um den Fortschritt zu formatieren.
+
+2025-04:
+Auch openCV macht erhebliche Probleme: zum Einen ist es absolut überdimensieniert, zum anderen kompiliert es nicht mit nuitka.
+Die Lösung ist, einfach ffprobe direkt selber auszuwerten. Dabei kommt zu gute, dass man den oft nicht enthaltenen frameCount ungefähr selber aus avg_frame_rate und der duration selber ermittlen kann. Das reicht für die Fortshtittsanzeige aus.
+Zudem wird XCode dadurch leichtgewichtiger.
+
+ruegi. 2025-04-09
+=======
 Entfernen der Abhängigkeit von MediaInfo und danach von ffmpeg-python. Die Video Attribute werden statt dessen mittes openCV ausgelesen. Das ist erheblich verläßlicher in Bezug sug frameCount, um den Fortschritt zu formatieren.
 
 ruegi. 2025-03-26
+>>>>>>> cd27b41b63bcd5cde0c53b952b8be903ba6665a0

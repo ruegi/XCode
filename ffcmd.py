@@ -18,6 +18,7 @@ laden der ffmpeg-Befehle aus einer Datei und montieren des Transcode-Aufrufs
                     Dabei habe ich jetzt den FrameCount , wenn er nicht vorhanden ist, aus der "fps" und der "duration" berechnet;
                     Bei nicht im Film vorhdenen FrameCounts werden diese acuh in openCV aus der avg_framerate und der duration berechnet;
                     das reicht hier aus. Dazu isr ffprobe auch schneller.
+2025-04-17  rg      die Funktion 'getVideoSpecs' ist jetzt in die Datei 'videoDetails.py' ausgelagert worden;
 """
 # import pprint
 from pathlib import Path
@@ -26,10 +27,14 @@ import configparser
 
 import os
 import sys
-import subprocess
+
+# import subprocess
 
 # env Logik
 from dotenv import dotenv_values
+
+from videoDetails import getVideoSpecs
+
 
 class Konstanten:
     if sys.platform == "win32":
@@ -37,7 +42,7 @@ class Konstanten:
         INIDATEI = "ffcmd.ini"
         XCODEZIEL = "E:\\Filme\\schnitt\\"
         LOGPATH = "E:\\Filme\\log\\"
-    else:   # LINUX
+    else:  # LINUX
         FFMPEG = "/usr/bin/ffmpeg"
         INIDATEI = "ffcmd.ini"
         XCODEZIEL = "/home/ruegi/Videos/schnitt"
@@ -45,10 +50,22 @@ class Konstanten:
 
     # DEFAULTS
     ICON = "XCode.ico"
-    SD_CMD = '{FFMPEG}' + ' -hide_banner {canvassize} -loglevel error -i "{EingabeDatei}" -map 0 -c:v libsvtav1 -pix_fmt yuv420p10le -threads 4 -crf 24 -preset 8 -svtav1-params tune=0 -dn -codec:a libopus -af aformat=channel_layouts="7.1|5.1|stereo" -b:a 128k -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
-    HD_CMD = '{FFMPEG}' + ' -hide_banner {canvassize} -loglevel error -i "{EingabeDatei}" -map 0 -c:v libsvtav1 -pix_fmt yuv420p10le -threads 4 -crf 27 -preset 8 -svtav1-params tune=0 -dn -codec:a libopus -af aformat=channel_layouts="7.1|5.1|stereo" -b:a 128k -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
-    FHD_CMD = '{FFMPEG}' + ' -hide_banner {canvassize} -loglevel error -i "{EingabeDatei}" -map 0 -c:v libsvtav1 -pix_fmt yuv420p10le -threads 4 -crf 31 -preset 8 -svtav1-params tune=0 -dn -codec:a libopus -af aformat=channel_layouts="7.1|5.1|stereo" -b:a 128k -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
-    Copy_CMD = '{FFMPEG}' + ' -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}" -map 0 -c:v copy -dn -codec:a libopus -af aformat=channel_layouts="7.1|5.1|stereo" -b:a 128k -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
+    SD_CMD = (
+        "{FFMPEG}"
+        + ' -hide_banner {canvassize} -loglevel error -i "{EingabeDatei}" -map 0 -c:v libsvtav1 -pix_fmt yuv420p10le -threads 4 -crf 24 -preset 8 -svtav1-params tune=0 -dn -codec:a libopus -af aformat=channel_layouts="7.1|5.1|stereo" -b:a 128k -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
+    )
+    HD_CMD = (
+        "{FFMPEG}"
+        + ' -hide_banner {canvassize} -loglevel error -i "{EingabeDatei}" -map 0 -c:v libsvtav1 -pix_fmt yuv420p10le -threads 4 -crf 27 -preset 8 -svtav1-params tune=0 -dn -codec:a libopus -af aformat=channel_layouts="7.1|5.1|stereo" -b:a 128k -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
+    )
+    FHD_CMD = (
+        "{FFMPEG}"
+        + ' -hide_banner {canvassize} -loglevel error -i "{EingabeDatei}" -map 0 -c:v libsvtav1 -pix_fmt yuv420p10le -threads 4 -crf 31 -preset 8 -svtav1-params tune=0 -dn -codec:a libopus -af aformat=channel_layouts="7.1|5.1|stereo" -b:a 128k -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
+    )
+    Copy_CMD = (
+        "{FFMPEG}"
+        + ' -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}" -map 0 -c:v copy -dn -codec:a libopus -af aformat=channel_layouts="7.1|5.1|stereo" -b:a 128k -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
+    )
 
     # alt seit 2024-06-07
     # SD_CMD = 'c:\\ffmpeg\\bin\\ffmpeg -hide_banner {canvassize} -hwaccel auto -i "{EingabeDatei}" -map 0 -c:v hevc_nvenc -pix_fmt p010le -profile:v main10 -level 4.1 -tier high -preset p7 -tune hq -dn -codec:a copy -c:s dvdsub -y -f matroska "{AusgabeDatei}"'
@@ -72,158 +89,13 @@ cmd ={FHD_CMD}
 cmd ={Copy_CMD}
 """
 
-# def wertAusDictLesen(dict: dict, key: str):
-#     # liest den Wert aus dem 'dict' mit 'key' und gibt ihn zurück;
-#     # fängt dabei ggf. einen KeyError ab und gibt dann None zurück
-#     try:
-#         wert = dict[key]
-#     except KeyError:
-#         return None
-#     return wert
-
-
-# def getVideoSpecs(ts_von:str)->dict|None:
-#     '''
-#     liest die Eigenschaften 'bitRate, 'weite', 'hoehe', 'typ', 'frameCnt' und 'duration' aus der VideoDatei aus
-#     und gibt sie als Dict zurück;
-#     existiert die Datei nicht, wird None zurückgeliefert
-#     Benutzt openCV!
-#     Dict Keys
-#     -------------
-#     "bitrate"       int         avg_bitrate
-#     "duration"      float       secs.microsecs
-#     "weite"         int
-#     "hoehe"         int
-#     "typ"           str         "SD", "HD", FullHD", "4K"
-#     "frameCnt"     int|None    ggf. None!
-#     "fps"           int
-#     -------------
-#     rg, 2025-03-24
-#     '''
-#     def toInt(wert):
-#         try:
-#             i = int(wert)
-#         except ValueError:
-#             i = 0
-#         return i
-
-#     if not os.path.exists(ts_von):
-#         return None
-#     # else:
-#     #     print(ts_von)
-#     ret = {}
-#     cap = cv2.VideoCapture(ts_von)        # dieser Aufruf erzeugt ggf. Fehlermeldungen beim Open des VideoStreams
-#     # cap = cv2.VideoCapture(               # diese Varainte funktioniert leider nicht
-#     #     ts_von,
-#     #     apiPreference=cv2.CAP_FFMPEG,  # was previously cv2.CAP_ANY
-#     #     params=[cv2.OPENCV_LOG_LEVEL, 0],   # 0 = cv2.LOG_LEVEL_SILENT
-#     # )
-#     frameCnt= toInt(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-#     ret["frameCnt"] = frameCnt
-#     ret["weite"] = toInt(cap.get(cv2.CAP_PROP_FRAME_WIDTH ))
-#     ret["hoehe"] = toInt(cap.get(cv2.CAP_PROP_FRAME_HEIGHT ))
-#     ret["bitrate"] = toInt(cap.get(cv2.CAP_PROP_BITRATE ))
-#     fps = float(cap.get(cv2.CAP_PROP_FPS ))
-#     ret["fps"] = fps
-#     ret["duration"] = frameCnt / fps
-#     ret["typ"] = getVideoTyp(ret["weite"])
-#     cap.release()
-#     # print("--------------------")
-#     # pprint.pprint(ret)
-
-#     return ret
-
-def getVideoSpecs(videoname: str)->dict:
-    '''
-    benutzt:
-        'ffprobe -v error -hide_banner -of default=noprint_wrappers=0 -print_format ini -select_streams v:0 -show_streams "$1"'
-
-    diese Dict Keys werden als Return Value Dict zurückgeliefert:
-    -------------
-    "bitrate"       int         avg_bitrate
-    "duration"      float       secs.microsecs
-    "weite"         int
-    "hoehe"         int
-    "typ"           str         "SD", "HD", FullHD", "4K"
-    "frameCnt"     int|None    ggf. None!
-    "fps"           int
-    -------------
-    '''
-
-    def _getVideoType(width: int, height: int) -> str:
-        if width >= 3840 and height >= 2160:
-            return "4K"
-        elif width >= 1920 and height >= 1080:
-            return "FullHD"
-        elif width >= 1280 and height >= 720:
-            return "HD"
-        else:
-            return "SD"
-
-    cmd = f'ffprobe -v error -hide_banner -of default=noprint_wrappers=0 -print_format ini -select_streams v:0 -show_streams "{videoname}"'
-    pobj = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, timeout=10, encoding="utf-8")
-    if pobj.returncode:
-        return None
-
-    # pobj.stdout verarbeiten
-    details = {}
-    lines = pobj.stdout.splitlines()
-    for line in lines:
-        if "=" in line:
-            key, value = line.split("=", 1)
-            details[key.strip()] = value.strip()
-
-    # Konvertiere die Werte in die entsprechenden Typen
-    erg = {}
-    if  "bitrate" in details:
-        erg["bitrate"]= int(details["bit_rate"]) // 1000
-    else:
-        erg["bitrate"] = None
-    if "duration" in details:
-        erg["duration"] = float(details["duration"])
-    else:
-        erg["duration"] = None
-    if "width" in details:
-        erg["weite"] = int(details["width"])
-    else:
-        erg["weite"] = None
-    if "height" in details:
-        erg["hoehe"] = int(details["height"])
-    else:
-        erg["hoehe"] = None
-
-    if erg["weite"] and erg["hoehe"]:
-        erg["typ"] = _getVideoType(int(details["width"]), int(details["height"]))
-    else:
-        erg["typ"] = "HD"
-
-
-    if "avg_frame_rate" in details:
-        erg["fps"] = int(details["avg_frame_rate"].split("/")[0]) // int(details["avg_frame_rate"].split("/")[1])
-    else:
-        erg["fps"] = None
-
-    if "duration" in details:
-        erg["duration"] = float(details["duration"])
-    else:
-        erg["duration"] = None
-
-    if not "nb_frames" in details or details["nb_frames"] == "N/A":
-        if "fps" in erg and "duration" in erg:
-            erg["frameCnt"] = int(erg["duration"] * erg["fps"])
-        else:
-            erg["frameCnt"] = None
-    else:
-        erg["frameCnt"] = int(details["nb_frames"])
-
-    # gib das Ergebnis zurück
-    return erg
 
 class ffmpegcmd:
-
     def __init__(self):
-
-        config = dotenv_values(".env.xcode")
+        if sys.platform == "win32":
+            config = dotenv_values(".env.xcode.win32")
+        else:
+            config = dotenv_values(".env.xcode.linux")
         Konstanten.FFMPEG = config["FFMPEG"]
         Konstanten.XCODEZIEL = config["ZIEL"]
         Konstanten.INIDATEI = config["INIDATEI"]
@@ -235,7 +107,7 @@ class ffmpegcmd:
         # init Command-String für das Transcodieren herstellen oder lesen
         pFile = Path(self.initFile)
         if not os.path.isfile(self.initFile):
-        # zur Not, wenn es keine INI-Datei gibt, diese hier erzeugen
+            # zur Not, wenn es keine INI-Datei gibt, diese hier erzeugen
             cmd = Konstanten.MUSTER_FFMCMD
             with open(self.initFile, "w") as iniFHdl:
                 iniFHdl.write(cmd)
@@ -253,8 +125,7 @@ class ffmpegcmd:
         self.cmd_Copy = config.get("Copy", "cmd", fallback=Konstanten.Copy_CMD)
         self.usedIni = f"[SD]\n{self.cmd_SD}\n\n[HD]\n{self.cmd_HD}\n\n[FullHD]\n{self.cmd_FullHD}\n\n[Copy]\n{self.cmd_Copy}\n"
 
-
-    def lstReplace(self, myLst: [], von: str, zu: str, listInsert=False)->[]:
+    def lstReplace(self, myLst: [], von: str, zu: str, listInsert=False) -> []:
         # Ändert den Eintrag 'von' der Liste myLst in 'zu' \\in Place\\
         # findet nur das erste Vorkommen des Strings 'von'
         # ist listInsert=True, so wird VOR das gefundene Element eingefügt
@@ -266,7 +137,6 @@ class ffmpegcmd:
                 myLst[i] = zu
         except ValueError:
             pass
-
 
     def ffXcodeCmd(self, ts_von, ts_nach, nurLog=False, nurCopy=False):
         """
@@ -299,18 +169,22 @@ class ffmpegcmd:
 
         videoDict = getVideoSpecs(ts_von)
 
+        # print(f"{videoDict=}")
+
         if nurCopy == True:
             cmd = self.cmd_Copy
         else:
-            if videoDict["typ"] in ("SD", "HD", "FullHD"):
-                cmd = aufrufDict[videoDict["typ"]]
-            else: # Default
-                cmd = aufrufDict["HD"]  # default
+            cmd = ""
+            if videoDict:
+                if videoDict["typ"] in ("SD", "HD", "FullHD"):
+                    cmd = aufrufDict[videoDict["typ"]]
+                else:  # Default
+                    cmd = aufrufDict["HD"]  # default
 
-        cmdLst = cmd.split(" ")     # Liste der einzelnen Parameter des ffmpeg Aufrufs
+        cmdLst = cmd.split(" ")  # Liste der einzelnen Parameter des ffmpeg Aufrufs
 
         cmd = cmd.replace("{FFMPEG}", Konstanten.FFMPEG)
-        self.lstReplace(cmdLst, '{FFMPEG}', Konstanten.FFMPEG)
+        self.lstReplace(cmdLst, "{FFMPEG}", Konstanten.FFMPEG)
 
         # weitere Ersetzungen der cmd-Zeile
         cmd = cmd.replace("{EingabeDatei}", ts_von)
@@ -326,7 +200,7 @@ class ffmpegcmd:
             cmd = cmd.replace("{BitRate}", videoDict["bitRate"])
             self.lstReplace(cmdLst, "{BitRate}", videoDict["bitRate"])
 
-        canvasParm = f"{videoDict["weite"]}x{videoDict["hoehe"]}"
+        canvasParm = f'{videoDict["weite"]}x{videoDict["hoehe"]}'
         cmd = cmd.replace("{canvassize}", "-canvas_size " + canvasParm)
         self.lstReplace(cmdLst, "{canvassize}", canvasParm)
         self.lstReplace(cmdLst, canvasParm, "-canvas_size", listInsert=True)
@@ -350,10 +224,11 @@ if __name__ == "__main__":
     # von = "/home/ruegi/Videos/ts/" + film + ".ts"
     # film = "2012_(2009).ts"
     # film = "Luther (2003).ts.done"
-    film = "Leonard_Cohen_-_Live_in_London_(2010).ts.done"
-    von = "/home/ruegi/Videos/ts/" + film
-    nach = "/home/ruegi/Videos/schnitt/" + film + ".mkv"
-
+    film = "One_Piece_-_Film_Z_(2012).ts"
+    # von = "/home/ruegi/Videos/ts/" + film
+    # nach = "/home/ruegi/Videos/schnitt/" + film + ".mkv"
+    von = "c:\\ts\\" + film
+    nach = "e:\\Filme\\schnitt\\" + film + ".mkv"
     ff = ffmpegcmd()
     cmd = ff.ffXcodeCmd(von, nach, nurCopy=False)
 

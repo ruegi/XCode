@@ -8,6 +8,8 @@
 # Variante mit start eines separaten Porcesses für den TransCode
 # angeregt durch start_process.py und ProcessTest.py
 
+# .venv mit UV verwaltet (seit 2025-06-16)
+
 # Versionen:
 # 1.2     Änderung auf eine ini-Datei- die nach SD, HD und FullHD differenziert,
 #         frame-Zeile in der Statuszeile
@@ -37,7 +39,7 @@
 #          Änderung der .env-Datei in .env.xcode
 #
 #           Konfig unter Linux:
-#          - das Programm XCode.bin zusammen mit ffcmd.ini und .env.xcode liegen im Ordner xcode z.B. in ~/.local/bin
+#          - das Programm XCode.bin zusammen mit ffcmd.ini und .env.xcode.linux liegen im Ordner xcode z.B. in ~/.local/bin
 #          - die Umgebungsvariablen werden in der Datei ~/.local/bin/.env.xcode gespeichert
 #          - passende xcode.desktop-Datei im Ordner ~/.local/share/applications/xcode.desktop
 #            hier ein Beispiel für seinen Inhalt:
@@ -60,18 +62,22 @@
 #           X-KDE-SubstituteUID=false
 #           X-KDE-Username=
 #
+# 3.51      Erweiterung von .env.xcode auf .env.xcode.win32 und .env.xcode.linux
+# 3.52      Verbesserung der Robustheit, wenn eine Datei mit gültiger Endung aber ohne Film gefunden wird
+# 3.6       Robustere env-Logik, Mitteilung, wenn sie fehlt
+
 from PySide6.QtWidgets import (
     QMainWindow,
-    QTextEdit,
-    QTableWidget,
+    # QTextEdit,
+    # QTableWidget,
     QTableWidgetItem,
     QHeaderView,
     QStyle,
-    QLabel,
+    # QLabel,
     QLineEdit,
     QPushButton,
     QWidget,
-    QHBoxLayout,
+    # QHBoxLayout,
     QVBoxLayout,
     QApplication,
     QMessageBox,
@@ -97,12 +103,11 @@ import liste.liste as liste  # hält eine Liste der umzuwandelnden Dateien
 
 # import videoFile
 import ffcmd
-import XCodeUI  # Hauptfenster; mit pyuic aus der UI-Datei konvertiert
+import XCodeUI  # Hauptfenster; mit uic aus der UI-Datei konvertiert
 
 # env Logik
 from dotenv import dotenv_values
 
-# import pprint
 
 class Konstanten:  # Konstanten des Programms
     if sys.platform == "win32":
@@ -110,14 +115,14 @@ class Konstanten:  # Konstanten des Programms
         ZIEL = "E:\\Filme\\schnitt\\"
         LOGPATH = "E:\\Filme\\log\\"
         CODEPAGE = "cp1252"
-    else:   # LINUX
+    else:  # LINUX
         QUELLE = "~/Videos/"
         ZIEL = "~/Videos/schnitt/"
         LOGPATH = "~/Videos/log/"
         CODEPAGE = "utf8"
 
-    VERSION = "3.5"
-    VERSION_DAT = "2025-04-08"
+    VERSION = "3.6"
+    VERSION_DAT = "2025-06-17"
     normalFG = QBrush(QColor.fromString("Gray"))
     normalBG = QBrush(QColor.fromString("White"))
     highFG = QBrush(QColor.fromString("White"))
@@ -125,7 +130,8 @@ class Konstanten:  # Konstanten des Programms
     OkFG = QBrush(QColor.fromString("Green"))
     iconFile = "XC_1.ico"
     logProgress = False  # 4 debug
-    ffmpegLog = LOGPATH + "/ffmpegDebug"
+    ffmpegLog = LOGPATH + "ffmpegDebug"
+
 
 class ladeFenster(QWidget):
     """
@@ -169,12 +175,13 @@ class tsEintrag:
         self.status = status
         self.progress = 0
         self.copyMode = False
-        self.video = ffcmd.getVideoSpecs(fullpath)    # ein Dict mit Video-Attributen
+        self.video = ffcmd.getVideoSpecs(fullpath)  # ein Dict mit Video-Attributen
         self.org_len = 0
         self.xcode_len = 0
 
     def __str__(self):
-        return "{0}: {1} mit Status {2}".format(self.nr, self.fullpath, self.status)
+        # return "{0}: {1} mit Status {2}".format(self.nr, self.fullpath, self.status)
+        return f"{self.nr}: {self.fullpath}; video={self.video}"
 
     def setStatus(self, status):
         self.status = status
@@ -313,7 +320,15 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         super(self.__class__, self).__init__()
 
         self.setupUi(self)  # This is defined in XCodeUI.py file automatically
-        # It sets up layout and widgets that are defined
+
+        # NotStop, falls die .env-Datei fehlt:
+        if KEINE_ENV:
+            _ = QMessageBox.information(
+                self,
+                "ACHTUNG!",
+                f"Bitte erst eine passende {envDatei} -Datei im StartOrdner anlegen!\n\nEnde mit Fehler!",
+            )
+            exit(1)
 
         # Instanz-Variablen
         self.ff = ffcmd.ffmpegcmd()
@@ -323,8 +338,8 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.fortschritt = (
             None  # hält das Fortschritt Objekt des aktuell codierten Film
         )
-        self.frameCount = 0         # ANz. Frames des aktuellen Films
-        self.dauer = 0.0            # zeitdauer des aktuellen Films
+        self.frameCount = 0  # ANz. Frames des aktuellen Films
+        self.dauer = 0.0  # zeitdauer des aktuellen Films
         self.isFirst = True
         self.process = None
         self.processkilled = False
@@ -419,7 +434,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         if self.tsliste.size == 0:
             reply = QMessageBox.information(
                 self,
-                "Hinweis",
+                f"Hinweis (XCode {Konstanten.VERSION} vom {Konstanten.VERSION_DAT})",
                 "Es gibt im Order {0} keine ts-Dateien.\nNichts zu tun!".format(
                     self.quelle
                 ),
@@ -515,7 +530,6 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
                     self.infoZeilenAusgeben(zeile)
         return
 
-
     def infoZeilenAusgeben(self, zeile):
         """
         gibt die InfoZeilen im Fenster self.edit aus
@@ -570,11 +584,11 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         anzFr = toInt(self.fortschritt.getParm("frame"), default=None)
         us_i = toInt(self.fortschritt.getParm("out_time_us"))
         if not anzFr is None:
-            proD =  anzFr / self.frameCount
+            proD = anzFr / self.frameCount
         elif not us_i is None:
-            zPunkt = float(us_i/1000000)
+            zPunkt = float(us_i / 1000000)
             proD = zPunkt / self.dauer
-        else:   # kann den Fortschritt nicht bestimmen
+        else:  # kann den Fortschritt nicht bestimmen
             proD = -1.0
 
         # us_i = int(self.fortschritt.getParm("out_time_us"))
@@ -817,7 +831,7 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
                 if fext in [".ts", ".mpg", ".mp4", ".mkv", ".mv4", ".mpeg", ".avi"]:
                     nlst.append(entry.name)
 
-        nlst.sort()     # nach Name sortieren
+        nlst.sort()  # nach Name sortieren
         i = 0
         for vname in nlst:
             i += 1
@@ -826,7 +840,15 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
             _, fext = os.path.splitext(entry.name)
             # self, nr, fullpath, name, ext, status
             tse = tsEintrag(i, fullpath, vname, fext, "warten...  ")
-            self.tsliste.append(tse)
+            if (
+                not tse.video
+            ):  # z.B. None; muss übersprungen werden un der Zähler zurück
+                # print("Geskippt:", tse)
+                i -= 1
+                continue
+            else:
+                self.tsliste.append(tse)
+                # print("Aktiv:", tse)
             self.log.log("Lade: {0:2}: {1}".format(i, vname))
 
         self.refreshTable(True)
@@ -841,6 +863,8 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
             # direkte Benutzung der tsliste, ohne die Werte von lastPos und lastObj zu verändern
             nr = ts.nr - 1
             if neuaufbau:
+                # print(f"{ts.name=}")
+                # print(f"{ts.video["typ"]=}")
                 self.tbl_files.insertRow(nr)
                 self.tbl_files.setItem(nr, 0, QTableWidgetItem(str(ts.nr)))
                 self.tbl_files.setItem(nr, 1, QTableWidgetItem(ts.X))
@@ -904,7 +928,6 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         itm.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         self.tbl_files.selectRow(row)
 
-
     def KonverterLoop(self):
         """
         steuert die Konvertierung
@@ -917,12 +940,10 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
             else:
                 self.convert(rowNr, ZielDatei)
 
-
     def convertStart(self):
         # starthilfe
         self.tsliste.findFirst()
         self.convert()
-
 
     def convert(self):
         """
@@ -937,8 +958,8 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         # print(f"{row=}")
         # pprint.pprint(f"{Datei=}")
 
-        if Datei is None:   # z.B. None
-            self.ende_verarbeitung()        # PANIC
+        if Datei is None:  # z.B. None
+            self.ende_verarbeitung()  # PANIC
 
         # keine Verarbeitung, falls kein X gesetzt wurde
         if not Datei.X == "X":
@@ -957,7 +978,9 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         self.ts_nach = self.ziel + fname + ".mkv"
         self.ts_von = Datei.fullpath
         self.log.log(f"\nStart Konvertierung von {self.ts_von} . . .")
-        self.log.log(f"Auflösung: {Datei.video["typ"]} ({Datei.video["weite"]} x {Datei.video["hoehe"]})")
+        self.log.log(
+            f'Auflösung: {Datei.video["typ"]} ({Datei.video["weite"]} x {Datei.video["hoehe"]}'
+        )
         self.statusbar.showMessage(
             "Umwandlung {0} -> {1}".format(self.ts_von, self.ts_nach)
         )
@@ -996,15 +1019,14 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         #     self.probar2.setFormat("%v")
         #     self.probar2.setValue(0)
 
-
-            # self.probar2.setTextVisible(False)
-            # self.probar2.setRange(0, 0)  # start hin-her
-            # self.probar2.setValue(0)
+        # self.probar2.setTextVisible(False)
+        # self.probar2.setRange(0, 0)  # start hin-her
+        # self.probar2.setValue(0)
 
         # # Prozess starten
         cmdParms = self.lastcmd[1]
         prog = cmdParms[0]
-        cmdParms = cmdParms[1:] # {FFMPEG} abtrennen
+        cmdParms = cmdParms[1:]  # {FFMPEG} abtrennen
         self.running = True
         self.prstart = timer()
         self.process = QProcess()
@@ -1018,7 +1040,8 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
                     f"\n---------- [{self.ts_von}] ------------------------------------\n"
                     + "Das Ende eines eingelesenen Blocks wird mit '§CRLF' gekennzeichnet,\n"
                     + "Ein einfaches 'CR' wird mit '$' markiert\n"
-                    + "-" * 80 + "\n"
+                    + "-" * 80
+                    + "\n"
                 )
 
     def progende(self):  # Ende Proc mit Nachfrage
@@ -1150,8 +1173,6 @@ class XCodeApp(QMainWindow, XCodeUI.Ui_MainWindow):
         if summe_org > 0:
             txt += f"Kompression auf:  {summe_xcode/summe_org*100:.2f}%"
         return (txt, isOK)
-
-
 
 
 def format_size(flen: int):
@@ -1287,8 +1308,7 @@ QTextEdit {
     border: 1px solid Chocolate;
     border-radius: 5px;
 }
-""" # background-color: #fff5cc;
-
+"""  # background-color: #fff5cc;
 
     app = QApplication(sys.argv)
     app.setStyleSheet(StyleSheet)
@@ -1302,13 +1322,41 @@ QTextEdit {
     app.exec()  # and execute the app
 
 
+def read_conf(conf_var, dict, key):
+    """setzt den content in die conf_var, wenn möglich
+    Args:
+        conf_var (_type_): Konstanten-Variable
+        dict (_type_): ein Dict
+        key: Schlüssel dafür
+    """
+    try:
+        conf_var = dict[key]
+    except:
+        pass
+
+
 if __name__ == "__main__":
     # print(f"ArbeitsDir: {os.getcwd()}")
 
-    config = dotenv_values(".env.xcode")
-    Konstanten.QUELLE = config["QUELLE"]
-    Konstanten.ZIEL = config["ZIEL"]
-    Konstanten.LOGPATH = config["LOGPATH"]
-    Konstanten.CODEPAGE = config["CODEPAGE"]
+    if sys.platform == "linux":
+        envDatei = ".env.xcode.linux"
+    else:
+        envDatei = ".env.xcode.win32"
+    if os.path.exists(envDatei):
+        config = dotenv_values(envDatei)
+        # Konstanten.QUELLE = config["QUELLE"]
+        # Konstanten.ZIEL = config["ZIEL"]
+        # Konstanten.LOGPATH = config["LOGPATH"]
+        # Konstanten.CODEPAGE = config["CODEPAGE"]
+        read_conf(Konstanten.QUELLE, config, "QUELLE")
+        read_conf(Konstanten.ZIEL, config, "ZIEL")
+        read_conf(Konstanten.LOGPATH, config, "LOGPATH")
+        read_conf(Konstanten.CODEPAGE, config, "CODEPAGE")
+        KEINE_ENV = False
+    else:
+        KEINE_ENV = True
+        # print(
+        #     f"{Konstanten.QUELLE=}, {Konstanten.ZIEL=}, {Konstanten.LOGPATH=}, {Konstanten.CODEPAGE=}"
+        # )
 
     main()  # run the main function
