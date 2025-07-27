@@ -34,7 +34,7 @@ then
         --windows-icon-from-ico=./XC_1.ico \
         ./XCode.py
     cp ./ffcmd.ini ./dist/xcode
-    cp ./.env.xcode ./dist/xcode
+    cp ./.env.xcode.* ./dist/xcode
     cp ./XC_1.ico ./dist/xcode
 else
     echo "ok"

@@ -1,0 +1,141 @@
+'''
+dieses SNIPPET enthält 2 veraltete Varianten von getVideoSpecs
+die erste Variante benutzt ffprobe, die zweite Variante benutzt openCV
+die erste Variante ist die bessere, weil sie erheblich leichtgewichtiger ist
+'''
+# def getVideoSpecs(ts_von:str)->dict|None:
+#     '''
+#     liest die Eigenschaften 'bitRate, 'weite', 'hoehe', 'typ', 'frameCnt' und 'duration' aus der VideoDatei aus
+#     und gibt sie als Dict zurück;
+#     existiert die Datei nicht, wird None zurückgeliefert
+#     Benutzt openCV!
+#     Dict Keys
+#     -------------
+#     "bitrate"       int         avg_bitrate
+#     "duration"      float       secs.microsecs
+#     "weite"         int
+#     "hoehe"         int
+#     "typ"           str         "SD", "HD", FullHD", "4K"
+#     "frameCnt"     int|None    ggf. None!
+#     "fps"           int
+#     -------------
+#     rg, 2025-03-24
+#     '''
+#     def toInt(wert):
+#         try:
+#             i = int(wert)
+#         except ValueError:
+#             i = 0
+#         return i
+
+#     if not os.path.exists(ts_von):
+#         return None
+#     # else:
+#     #     print(ts_von)
+#     ret = {}
+#     cap = cv2.VideoCapture(ts_von)        # dieser Aufruf erzeugt ggf. Fehlermeldungen beim Open des VideoStreams
+#     # cap = cv2.VideoCapture(               # diese Varainte funktioniert leider nicht
+#     #     ts_von,
+#     #     apiPreference=cv2.CAP_FFMPEG,  # was previously cv2.CAP_ANY
+#     #     params=[cv2.OPENCV_LOG_LEVEL, 0],   # 0 = cv2.LOG_LEVEL_SILENT
+#     # )
+#     frameCnt= toInt(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+#     ret["frameCnt"] = frameCnt
+#     ret["weite"] = toInt(cap.get(cv2.CAP_PROP_FRAME_WIDTH ))
+#     ret["hoehe"] = toInt(cap.get(cv2.CAP_PROP_FRAME_HEIGHT ))
+#     ret["bitrate"] = toInt(cap.get(cv2.CAP_PROP_BITRATE ))
+#     fps = float(cap.get(cv2.CAP_PROP_FPS ))
+#     ret["fps"] = fps
+#     ret["duration"] = frameCnt / fps
+#     ret["typ"] = getVideoTyp(ret["weite"])
+#     cap.release()
+#     # print("--------------------")
+#     # pprint.pprint(ret)
+
+#     return ret
+
+# def getVideoSpecs(videoname: str)->dict:
+#     '''
+#     benutzt:
+#         'ffprobe -v error -hide_banner -of default=noprint_wrappers=0 -print_format ini -select_streams v:0 -show_streams "$1"'
+
+#     diese Dict Keys werden als Return Value Dict zurückgeliefert:
+#     -------------
+#     "bitrate"       int         avg_bitrate
+#     "duration"      float       secs.microsecs
+#     "weite"         int
+#     "hoehe"         int
+#     "typ"           str         "SD", "HD", FullHD", "4K"
+#     "frameCnt"     int|None    ggf. None!
+#     "fps"           int
+#     -------------
+#     '''
+
+#     def _getVideoType(width: int, height: int) -> str:
+#         if width >= 3840 and height >= 2160:
+#             return "4K"
+#         elif width >= 1920 and height >= 1080:
+#             return "FullHD"
+#         elif width >= 1280 and height >= 720:
+#             return "HD"
+#         else:
+#             return "SD"
+
+#     cmd = f'ffprobe -v error -hide_banner -of default=noprint_wrappers=0 -print_format ini -select_streams v:0 -show_streams "{videoname}"'
+#     pobj = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, timeout=10, encoding="utf-8")
+#     if pobj.returncode:
+#         return None
+
+#     # pobj.stdout verarbeiten
+#     details = {}
+#     lines = pobj.stdout.splitlines()
+#     for line in lines:
+#         if "=" in line:
+#             key, value = line.split("=", 1)
+#             details[key.strip()] = value.strip()
+
+#     # Konvertiere die Werte in die entsprechenden Typen
+#     erg = {}
+#     if  "bitrate" in details:
+#         erg["bitrate"]= int(details["bit_rate"]) // 1000
+#     else:
+#         erg["bitrate"] = None
+#     if "duration" in details:
+#         erg["duration"] = float(details["duration"])
+#     else:
+#         erg["duration"] = None
+#     if "width" in details:
+#         erg["weite"] = int(details["width"])
+#     else:
+#         erg["weite"] = None
+#     if "height" in details:
+#         erg["hoehe"] = int(details["height"])
+#     else:
+#         erg["hoehe"] = None
+
+#     if erg["weite"] and erg["hoehe"]:
+#         erg["typ"] = _getVideoType(int(details["width"]), int(details["height"]))
+#     else:
+#         erg["typ"] = "HD"
+
+
+#     if "avg_frame_rate" in details:
+#         erg["fps"] = int(details["avg_frame_rate"].split("/")[0]) // int(details["avg_frame_rate"].split("/")[1])
+#     else:
+#         erg["fps"] = None
+
+#     if "duration" in details:
+#         erg["duration"] = float(details["duration"])
+#     else:
+#         erg["duration"] = None
+
+#     if not "nb_frames" in details or details["nb_frames"] == "N/A":
+#         if "fps" in erg and "duration" in erg:
+#             erg["frameCnt"] = int(erg["duration"] * erg["fps"])
+#         else:
+#             erg["frameCnt"] = None
+#     else:
+#         erg["frameCnt"] = int(details["nb_frames"])
+
+#     # gib das Ergebnis zurück
+#     return erg
